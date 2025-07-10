@@ -1,0 +1,5 @@
+Flask==2.3.3
+firebase-admin==6.2.0
+holidays==0.34
+requests==2.31.0
+python-dotenv==1.0.0

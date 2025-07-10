@@ -1,0 +1,43 @@
+{
+  "cgpa": [
+    {
+      "user_id": "IRiGB5kBEyxYYyuTnaAk",
+      "result": {
+        "cgpa": 8.0,
+        "gpa_4_scale": 2.4,
+        "gpa_5_scale": 4.0,
+        "total_credits": 20.0,
+        "total_grade_points": 160.0,
+        "semesters": [
+          {
+            "semester": "Semester 1",
+            "sgpa": 8.0,
+            "credits": 20.0,
+            "grade_points": 160.0
+          }
+        ],
+        "calculated_at": "2025-07-11T00:44:57.878384"
+      },
+      "timestamp": "2025-07-11T00:44:57.878384"
+    }
+  ],
+  "attendance": [
+    {
+      "user_id": "IRiGB5kBEyxYYyuTnaAk",
+      "result": {
+        "current_percent": 60.0,
+        "attended": 15,
+        "total": 25,
+        "min_required": 75.0,
+        "status": "at_risk",
+        "message": "Your attendance is below the required 75.0%",
+        "recommendation": "You need to attend the next 15 classes consecutively to reach 75.0% attendance.",
+        "future_classes": 15,
+        "can_skip": 0,
+        "subject_name": "maths",
+        "calculated_at": "2025-07-11T00:45:14.426767"
+      },
+      "timestamp": "2025-07-11T00:45:14.438776"
+    }
+  ]
+}

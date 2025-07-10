@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Academic Calculator</title>
+    <link rel="icon" type="image/png" href="static/key.png">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/academic.png') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .login-container {
+            background: white;
+            width: 100%;
+            max-width: 1000px;
+            min-height: 600px;
+            border-radius: 24px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+        }
+
+        .illustration-section {
+            background: linear-gradient(135deg, #f0f9ff 0%, #e6f7ff 100%);
+            width: 45%;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .animation-wrapper {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .academic-animation {
+            width: 90%;
+            height: auto;
+            max-width: 350px;
+            margin: 0 auto;
+        }
+
+        .curve-container {
+            position: absolute;
+            right: 0;
+            top: 0;
+            height: 100%;
+            width: 100px;
+            overflow: hidden;
+        }
+
+        .curve {
+            position: absolute;
+            right: -50px;
+            height: 100%;
+            width: 100px;
+            background: white;
+            border-radius: 50px 0 0 50px;
+        }
+
+        .form-section {
+            flex: 1;
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: white;
+            overflow-y: auto;
+            max-height: 100vh;
+        }
+
+        .gradient-text {
+            font-size: 32px;
+            font-weight: 800;
+            margin: 20px 0 30px;
+            text-align: center;
+            background: linear-gradient(
+                to right,
+                #667eea 0%,
+                #764ba2 50%,
+                #667eea 100%
+            );
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            animation: flow 5s linear infinite;
+            background-size: 200% auto;
+            letter-spacing: 1px;
+        }
+
+        @keyframes flow {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .input-group {
+            width: 100%;
+            max-width: 320px;
+            margin-bottom: 20px;
+            position: relative;
+        }
+
+        .input-group input,
+        .input-group select {
+            width: 100%;
+            padding: 14px 20px;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 16px;
+            transition: all 0.3s;
+            background: #f9fafb;
+        }
+
+        .input-group input:focus,
+        .input-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            background: white;
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+        }
+
+        .input-group input::placeholder {
+            color: #9ca3af;
+        }
+
+        .input-group select {
+            color: #4b5563;
+            cursor: pointer;
+        }
+
+        .input-group select option {
+            background: white;
+            color: #4b5563;
+        }
+
+        .input-row {
+            display: flex;
+            gap: 15px;
+            width: 100%;
+            max-width: 320px;
+            margin-bottom: 20px;
+        }
+
+        .input-row .input-group {
+            margin-bottom: 0;
+            flex: 1;
+        }
+
+        .year-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            width: 100%;
+        }
+
+        .year-row .input-group {
+            flex: 1;
+            margin-bottom: 0;
+        }
+
+        .year-separator {
+            color: #6b7280;
+            font-weight: 500;
+            margin: 0 5px;
+        }
+
+        .forgot-password {
+            width: 100%;
+            max-width: 320px;
+            text-align: right;
+            margin-bottom: 20px;
+        }
+
+        .forgot-password a {
+            color: #667eea;
+            text-decoration: none;
+            font-size: 14px;
+            transition: color 0.3s;
+            font-weight: 500;
+        }
+
+        .forgot-password a:hover {
+            color: #764ba2;
+            text-decoration: underline;
+        }
+
+        .login-button {
+            width: 100%;
+            max-width: 320px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 14px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .login-button::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: all 0.6s;
+        }
+
+        .login-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(102, 126, 234, 0.4);
+        }
+
+        .login-button:hover::before {
+            left: 100%;
+        }
+
+        .login-button:active {
+            transform: translateY(0);
+            box-shadow: 0 4px 8px rgba(102, 126, 234, 0.2);
+        }
+
+        .alert {
+            width: 100%;
+            max-width: 320px;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+        }
+
+        .alert-error {
+            background-color: #fee2e2;
+            color: #ef4444;
+            border: 1px solid #fecaca;
+        }
+
+        .alert-success {
+            background-color: #dcfce7;
+            color: #22c55e;
+            border: 1px solid #bbf7d0;
+        }
+
+        .toggle-form {
+            margin-top: 20px;
+            font-size: 14px;
+            color: #4b5563;
+        }
+
+        .toggle-form a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+
+        .toggle-form a:hover {
+            color: #764ba2;
+            text-decoration: underline;
+        }
+
+        .form-title {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            color: #1f2937;
+        }
+
+        .form-container {
+            width: 100%;
+            max-width: 320px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        @media (max-width: 768px) {
+            .login-container {
+                flex-direction: column;
+                min-height: auto;
+                margin: 20px;
+                max-width: 400px;
+                border-radius: 16px;
+            }
+
+            .illustration-section {
+                width: 100%;
+                height: 220px;
+                border-radius: 16px 16px 0 0;
+            }
+
+            .curve-container {
+                display: none;
+            }
+
+            .form-section {
+                padding: 30px 20px;
+            }
+
+            .input-row {
+                flex-direction: column;
+                gap: 0;
+            }
+
+            .input-row .input-group {
+                margin-bottom: 20px;
+            }
+
+            .year-row {
+                flex-direction: column;
+                gap: 0;
+            }
+
+            .year-row .input-group {
+                margin-bottom: 15px;
+            }
+
+            .year-separator {
+                display: none;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .login-container {
+                margin: 0;
+                border-radius: 0;
+                height: 100vh;
+            }
+
+            .illustration-section {
+                height: 200px;
+                border-radius: 0;
+            }
+
+            .form-section {
+                padding: 20px;
+                flex: 1;
+            }
+
+            .gradient-text {
+                font-size: 28px;
+                margin: 15px 0 25px;
+            }
+
+            .input-group {
+                margin-bottom: 15px;
+            }
+
+            .input-group input,
+            .input-group select {
+                padding: 12px 16px;
+                font-size: 14px;
+            }
+
+            .forgot-password {
+                margin-bottom: 15px;
+            }
+
+            .login-button {
+                padding: 12px;
+                font-size: 14px;
+            }
+
+            .input-row {
+                margin-bottom: 15px;
+            }
+
+            .input-row .input-group {
+                margin-bottom: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="illustration-section">
+            <div class="animation-wrapper">
+                <!-- Academic themed SVG animation -->
+                <svg class="academic-animation" viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
+                    <!-- Gradient definitions -->
+                    <defs>
+                        <linearGradient id="bookGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" stop-color="#667eea" />
+                            <stop offset="100%" stop-color="#764ba2" />
+                        </linearGradient>
+                        <linearGradient id="calculatorGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" stop-color="#4CAF50" />
+                            <stop offset="100%" stop-color="#8BC34A" />
+                        </linearGradient>
+                        <linearGradient id="capGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" stop-color="#FF9800" />
+                            <stop offset="100%" stop-color="#F44336" />
+                        </linearGradient>
+                    </defs>
+
+                    <!-- Books Stack -->
+                    <g id="books" opacity="0">
+                        <rect x="50" y="180" width="80" height="12" rx="2" fill="url(#bookGradient)" />
+                        <rect x="55" y="170" width="80" height="12" rx="2" fill="#8BC34A" />
+                        <rect x="60" y="160" width="80" height="12" rx="2" fill="#FF9800" />
+                        <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.3;0.8;1" dur="6s" repeatCount="indefinite"/>
+                    </g>
+
+                    <!-- Calculator -->
+                    <g id="calculator" opacity="0">
+                        <rect x="200" y="150" width="60" height="80" rx="8" fill="url(#calculatorGradient)" stroke="#333" stroke-width="2"/>
+                        <rect x="210" y="160" width="40" height="15" rx="2" fill="#333"/>
+                        <!-- Calculator buttons -->
+                        <circle cx="220" cy="185" r="4" fill="#fff"/>
+                        <circle cx="235" cy="185" r="4" fill="#fff"/>
+                        <circle cx="250" cy="185" r="4" fill="#fff"/>
+                        <circle cx="220" cy="200" r="4" fill="#fff"/>
+                        <circle cx="235" cy="200" r="4" fill="#fff"/>
+                        <circle cx="250" cy="200" r="4" fill="#fff"/>
+                        <circle cx="220" cy="215" r="4" fill="#fff"/>
+                        <circle cx="235" cy="215" r="4" fill="#fff"/>
+                        <circle cx="250" cy="215" r="4" fill="#fff"/>
+                        <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.3;0.8;1" dur="6s" begin="1s" repeatCount="indefinite"/>
+                    </g>
+
+                    <!-- Graduation Cap -->
+                    <g id="cap" opacity="0">
+                        <polygon points="150,100 250,80 350,100 250,120" fill="url(#capGradient)"/>
+                        <rect x="245" y="100" width="10" height="40" fill="#333"/>
+                        <circle cx="250" cy="145" r="8" fill="#FFD700"/>
+                        <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.3;0.8;1" dur="6s" begin="2s" repeatCount="indefinite"/>
+                    </g>
+
+                    <!-- Mathematical symbols floating -->
+                    <g id="symbols" opacity="0">
+                        <text x="100" y="80" font-family="Arial" font-size="20" fill="#667eea">∑</text>
+                        <text x="300" y="60" font-family="Arial" font-size="18" fill="#764ba2">π</text>
+                        <text x="80" y="120" font-family="Arial" font-size="16" fill="#4CAF50">∫</text>
+                        <text x="320" y="140" font-family="Arial" font-size="22" fill="#FF9800">√</text>
+                        <animateTransform attributeName="transform" type="translate" values="0,0; 0,-10; 0,0" dur="3s" repeatCount="indefinite"/>
+                        <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.3;0.8;1" dur="6s" begin="3s" repeatCount="indefinite"/>
+                    </g>
+
+                    <!-- CGPA text -->
+                    <g id="cgpa-text" opacity="0">
+                        <text x="200" y="250" font-family="Inter" font-size="24" font-weight="bold" fill="#667eea" text-anchor="middle">CGPA</text>
+                        <text x="200" y="270" font-family="Inter" font-size="16" fill="#764ba2" text-anchor="middle">Calculator</text>
+                        <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.3;0.8;1" dur="6s" begin="4s" repeatCount="indefinite"/>
+                    </g>
+                </svg>
+            </div>
+            <div class="curve-container">
+                <div class="curve"></div>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h1 class="gradient-text">ACADEMIC HUB</h1>
+
+            <!-- Flash messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <!-- Login Form -->
+            <div id="loginForm" class="form-container" style="display: block;">
+                <h2 class="form-title">Login to Dashboard</h2>
+                <form action="{{ url_for('login', next=request.args.get('next')) }}" method="POST" style="width: 100%; display: flex; flex-direction: column; align-items: center;">
+                    <div class="input-group">
+                        <input type="text" id="username" name="username" placeholder="Username" required>
+                    </div>
+
+                    <div class="input-group">
+                        <input type="password" id="password" name="password" placeholder="Password" required>
+                    </div>
+
+                    <div class="forgot-password">
+                        <a href="#">Forgot Password?</a>
+                    </div>
+
+                    <button type="submit" class="login-button">LOGIN</button>
+                </form>
+
+                <div class="toggle-form">
+                    Don't have an account? <a href="#" onclick="toggleForms('registerForm')">Register now</a>
+                </div>
+            </div>
+
+            <!-- Registration Form -->
+            <div id="registerForm" class="form-container" style="display: none;">
+                <h2 class="form-title">Create Student Account</h2>
+                <form action="{{ url_for('register') }}" method="POST" style="width: 100%; display: flex; flex-direction: column; align-items: center;">
+                    
+                    <!-- Student Name -->
+                    <div class="input-group">
+                        <input type="text" id="reg_student_name" name="student_name" placeholder="Full Name" required>
+                    </div>
+
+                    <!-- Username -->
+                    <div class="input-group">
+                        <input type="text" id="reg_username" name="username" placeholder="Username" required>
+                    </div>
+
+                    <!-- Email -->
+                    <div class="input-group">
+                        <input type="email" id="reg_email" name="email" placeholder="Email Address" required>
+                    </div>
+
+                    <!-- Student ID -->
+                    <div class="input-group">
+                        <input type="text" id="reg_student_id" name="student_id" placeholder="Student ID" required>
+                    </div>
+
+                    <!-- Phone Number -->
+                    <div class="input-group">
+                        <input type="tel" id="reg_phone" name="phone" placeholder="Phone Number" required>
+                    </div>
+
+                    <!-- College -->
+                    <div class="input-group">
+                        <input type="text" id="reg_college" name="college" placeholder="College/University Name" required>
+                    </div>
+
+                    <!-- Course -->
+                    <div class="input-group">
+                        <select id="reg_course" name="course" required>
+                            <option value="" disabled selected>Select Course</option>
+                            <option value="B.Tech Computer Science">B.Tech Computer Science</option>
+                            <option value="B.Tech Electronics">B.Tech Electronics</option>
+                            <option value="B.Tech Mechanical">B.Tech Mechanical</option>
+                            <option value="B.Tech Civil">B.Tech Civil</option>
+                            <option value="B.Tech Electrical">B.Tech Electrical</option>
+                            <option value="B.Tech Chemical">B.Tech Chemical</option>
+                            <option value="B.Tech Aerospace">B.Tech Aerospace</option>
+                            <option value="B.Tech Information Technology">B.Tech Information Technology</option>
+                            <option value="B.Sc Computer Science">B.Sc Computer Science</option>
+                            <option value="B.Sc Mathematics">B.Sc Mathematics</option>
+                            <option value="B.Sc Physics">B.Sc Physics</option>
+                            <option value="B.Sc Chemistry">B.Sc Chemistry</option>
+                            <option value="B.Com">B.Com</option>
+                            <option value="BBA">BBA</option>
+                            <option value="BCA">BCA</option>
+                            <option value="M.Tech">M.Tech</option>
+                            <option value="M.Sc">M.Sc</option>
+                            <option value="MBA">MBA</option>
+                            <option value="MCA">MCA</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+
+                    <!-- Study Period (From Year to Year) -->
+                    <div class="input-group">
+                        <div class="year-row">
+                            <div class="input-group">
+                                <select id="reg_from_year" name="from_year" required>
+                                    <option value="" disabled selected>From Year</option>
+                                    <option value="2018">2018</option>
+                                    <option value="2019">2019</option>
+                                    <option value="2020">2020</option>
+                                    <option value="2021">2021</option>
+                                    <option value="2022">2022</option>
+                                    <option value="2023">2023</option>
+                                    <option value="2024">2024</option>
+                                    <option value="2025">2025</option>
+                                </select>
+                            </div>
+                            <span class="year-separator">to</span>
+                            <div class="input-group">
+                                <select id="reg_to_year" name="to_year" required>
+                                    <option value="" disabled selected>To Year</option>
+                                    <option value="2022">2022</option>
+                                    <option value="2023">2023</option>
+                                    <option value="2024">2024</option>
+                                    <option value="2025">2025</option>
+                                    <option value="2026">2026</option>
+                                    <option value="2027">2027</option>
+                                    <option value="2028">2028</option>
+                                    <option value="2029">2029</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Password fields -->
+                    <div class="input-group">
+                        <input type="password" id="reg_password" name="password" placeholder="Password" required minlength="6">
+                    </div>
+
+                    <div class="input-group">
+                        <input type="password" id="reg_confirm_password" name="confirm_password" placeholder="Confirm Password" required>
+                    </div>
+
+                    <button type="submit" class="login-button">CREATE ACCOUNT</button>
+                </form>
+
+                <div class="toggle-form">
+                    Already have an account? <a href="#" onclick="toggleForms('loginForm')">Login</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function toggleForms(formToShow) {
+            if (formToShow === 'loginForm') {
+                document.getElementById('loginForm').style.display = 'block';
+                document.getElementById('registerForm').style.display = 'none';
+            } else {
+                document.getElementById('loginForm').style.display = 'none';
+                document.getElementById('registerForm').style.display = 'block';
+            }
+        }
+
+        // Validate year selection
+        document.getElementById('reg_from_year').addEventListener('change', function() {
+            const fromYear = parseInt(this.value);
+            const toYearSelect = document.getElementById('reg_to_year');
+            const toYearOptions = toYearSelect.querySelectorAll('option');
+            
+            // Enable/disable to_year options based on from_year
+            toYearOptions.forEach(option => {
+                if (option.value && parseInt(option.value) <= fromYear) {
+                    option.disabled = true;
+                    option.style.color = '#ccc';
+                } else {
+                    option.disabled = false;
+                    option.style.color = '#4b5563';
+                }
+            });
+            
+            // Reset to_year if it's now invalid
+            if (toYearSelect.value && parseInt(toYearSelect.value) <= fromYear) {
+                toYearSelect.value = '';
+            }
+        });
+
+        // Form validation
+        document.addEventListener('DOMContentLoaded', function() {
+            const regForm = document.querySelector('#registerForm form');
+            if (regForm) {
+                regForm.addEventListener('submit', function(e) {
+                    const password = document.getElementById('reg_password').value;
+                    const confirmPassword = document.getElementById('reg_confirm_password').value;
+                    
+                    if (password !== confirmPassword) {
+                        e.preventDefault();
+                        alert('Passwords do not match!');
+                        return;
+                    }
+                    
+                    // Validate year range
+                    const fromYear = parseInt(document.getElementById('reg_from_year').value);
+                    const toYear = parseInt(document.getElementById('reg_to_year').value);
+                    
+                    if (fromYear && toYear && fromYear >= toYear) {
+                        e.preventDefault();
+                        alert('To Year must be after From Year!');
+                        return;
+                    }
+                    
+                    // Validate phone number (basic)
+                    const phone = document.getElementById('reg_phone').value;
+                    const phoneRegex = /^[+]?[\d\s\-()]{10,}$/;
+                    if (!phoneRegex.test(phone)) {
+                        e.preventDefault();
+                        alert('Please enter a valid phone number!');
+                        return;
+                    }
+                });
+            }
+        });
+
+        // Auto-format phone number
+        document.getElementById('reg_phone').addEventListener('input', function(e) {
+            let value = e.target.value.replace(/\D/g, '');
+            if (value.length >= 10) {
+                value = value.substring(0, 10);
+                e.target.value = value.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3');
+            }
+        });
+
+        // Prevent form submission on Enter key in select fields
+        document.querySelectorAll('select').forEach(select => {
+            select.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                }
+            });
+        });
+    </script>
+</body>
+</html>
