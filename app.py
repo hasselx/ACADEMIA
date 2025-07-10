@@ -7,9 +7,11 @@ import os
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 import uuid
-
+from dotenv import load_dotenv
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-change-this-in-production'
+
+load_dotenv()  # Loads .env variables into environment
 
 # Session configuration
 app.config['SESSION_PERMANENT'] = False
@@ -19,18 +21,23 @@ app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
 # Initialize Firebase (REQUIRED - no local storage fallback)
 db = None
-try:
-    if os.path.exists('firebase_key.json'):
-        cred = credentials.Certificate('firebase_key.json')
-        firebase_admin.initialize_app(cred)
-        db = firestore.client()
-        print("Firebase initialized successfully")
-    else:
-        print("ERROR: firebase_key.json not found! Firebase is required for this application.")
-        exit(1)
-except Exception as e:
-    print(f"ERROR: Firebase initialization failed: {e}")
-    exit(1)
+firebase_config = {
+    "type": os.getenv("FIREBASE_TYPE"),
+    "project_id": os.getenv("FIREBASE_PROJECT_ID"),
+    "private_key_id": os.getenv("FIREBASE_PRIVATE_KEY_ID"),
+    "private_key": os.getenv("FIREBASE_PRIVATE_KEY").replace("\\n", "\n"),
+    "client_email": os.getenv("FIREBASE_CLIENT_EMAIL"),
+    "client_id": os.getenv("FIREBASE_CLIENT_ID"),
+    "auth_uri": os.getenv("FIREBASE_AUTH_URI"),
+    "token_uri": os.getenv("FIREBASE_TOKEN_URI"),
+    "auth_provider_x509_cert_url": os.getenv("FIREBASE_AUTH_PROVIDER_CERT_URL"),
+    "client_x509_cert_url": os.getenv("FIREBASE_CLIENT_CERT_URL"),
+    "universe_domain": os.getenv("FIREBASE_UNIVERSE_DOMAIN")
+}
+
+
+cred = credentials.Certificate(firebase_config)
+firebase_admin.initialize_app(cred)
 
 def get_user_profile_ref(username):
     """Get Firebase reference for user profile"""
