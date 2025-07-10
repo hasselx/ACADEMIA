@@ -8,36 +8,65 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 import uuid
 from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
 app = Flask(__name__)
-app.secret_key = 'your-secret-key-change-this-in-production'
 
-load_dotenv()  # Loads .env variables into environment
+# Use environment variables for configuration
+app.secret_key = os.getenv('SECRET_KEY', 'fallback-secret-key-for-development')
 
-# Session configuration
+# Session configuration using environment variables
 app.config['SESSION_PERMANENT'] = False
 app.config['SESSION_COOKIE_HTTPONLY'] = True
-app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HTTPS
+app.config['SESSION_COOKIE_SECURE'] = os.getenv('FLASK_ENV') == 'production'  # Only secure in production
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=int(os.getenv('SESSION_TIMEOUT_MINUTES', '30')))
 
-# Initialize Firebase (REQUIRED - no local storage fallback)
+# Initialize Firebase using environment variables or service account file
 db = None
-firebase_config = {
-    "type": os.getenv("FIREBASE_TYPE"),
-    "project_id": os.getenv("FIREBASE_PROJECT_ID"),
-    "private_key_id": os.getenv("FIREBASE_PRIVATE_KEY_ID"),
-    "private_key": os.getenv("FIREBASE_PRIVATE_KEY").replace("\\n", "\n"),
-    "client_email": os.getenv("FIREBASE_CLIENT_EMAIL"),
-    "client_id": os.getenv("FIREBASE_CLIENT_ID"),
-    "auth_uri": os.getenv("FIREBASE_AUTH_URI"),
-    "token_uri": os.getenv("FIREBASE_TOKEN_URI"),
-    "auth_provider_x509_cert_url": os.getenv("FIREBASE_AUTH_PROVIDER_CERT_URL"),
-    "client_x509_cert_url": os.getenv("FIREBASE_CLIENT_CERT_URL"),
-    "universe_domain": os.getenv("FIREBASE_UNIVERSE_DOMAIN")
-}
-
-
-cred = credentials.Certificate(firebase_config)
-firebase_admin.initialize_app(cred)
+try:
+    # Try to use environment variables first
+    firebase_config = {
+        "type": "service_account",
+        "project_id": os.getenv('FIREBASE_PROJECT_ID'),
+        "private_key_id": os.getenv('FIREBASE_PRIVATE_KEY_ID'),
+        "private_key": os.getenv('FIREBASE_PRIVATE_KEY', '').replace('\\n', '\n'),
+        "client_email": os.getenv('FIREBASE_CLIENT_EMAIL'),
+        "client_id": os.getenv('FIREBASE_CLIENT_ID'),
+        "auth_uri": os.getenv('FIREBASE_AUTH_URI', 'https://accounts.google.com/o/oauth2/auth'),
+        "token_uri": os.getenv('FIREBASE_TOKEN_URI', 'https://oauth2.googleapis.com/token'),
+        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+        "client_x509_cert_url": os.getenv('FIREBASE_CLIENT_CERT_URL')
+    }
+    
+    # Check if all required Firebase environment variables are present
+    required_firebase_vars = ['FIREBASE_PROJECT_ID', 'FIREBASE_PRIVATE_KEY', 'FIREBASE_CLIENT_EMAIL']
+    if all(os.getenv(var) for var in required_firebase_vars):
+        print("Using Firebase configuration from environment variables")
+        cred = credentials.Certificate(firebase_config)
+        firebase_admin.initialize_app(cred)
+        db = firestore.client()
+        print("Firebase initialized successfully from environment variables")
+    else:
+        # Fallback to service account file
+        if os.path.exists('firebase_key.json'):
+            print("Using Firebase configuration from service account file")
+            cred = credentials.Certificate('firebase_key.json')
+            firebase_admin.initialize_app(cred)
+            db = firestore.client()
+            print("Firebase initialized successfully from service account file")
+        else:
+            print("ERROR: No Firebase configuration found!")
+            print("Please either:")
+            print("1. Set Firebase environment variables in .env file, or")
+            print("2. Place firebase_key.json in the project root")
+            exit(1)
+            
+except Exception as e:
+    print(f"ERROR: Firebase initialization failed: {e}")
+    exit(1)
 
 def get_user_profile_ref(username):
     """Get Firebase reference for user profile"""
@@ -595,10 +624,24 @@ def admin_users():
 # Health check route
 @app.route('/health')
 def health_check():
-    return jsonify({'status': 'ok', 'message': 'Server is running with Firebase-only storage'})
+    return jsonify({
+        'status': 'ok', 
+        'message': 'Server is running with Firebase storage',
+        'environment': os.getenv('FLASK_ENV', 'development'),
+        'firebase_configured': db is not None
+    })
 
 if __name__ == '__main__':
-    print("Starting Flask server with Firebase-only storage...")
+    print("Starting Flask server with environment-based configuration...")
+    print(f"Environment: {os.getenv('FLASK_ENV', 'development')}")
+    print(f"Debug mode: {os.getenv('FLASK_DEBUG', 'False')}")
     print("Firebase structure: /users/students/profiles/username")
     print("User data stored in: /users/students/profiles/username/data/")
-    app.run(debug=True, host='0.0.0.0', port=5000, threaded=True)
+    
+    # Run with environment-based configuration
+    app.run(
+        debug=os.getenv('FLASK_DEBUG', 'False').lower() == 'true',
+        host='0.0.0.0', 
+        port=int(os.getenv('PORT', '5000')), 
+        threaded=True
+    )
