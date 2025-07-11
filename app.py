@@ -632,16 +632,5 @@ def health_check():
     })
 
 if __name__ == '__main__':
-    print("Starting Flask server with environment-based configuration...")
-    print(f"Environment: {os.getenv('FLASK_ENV', 'development')}")
-    print(f"Debug mode: {os.getenv('FLASK_DEBUG', 'False')}")
-    print("Firebase structure: /users/students/profiles/username")
-    print("User data stored in: /users/students/profiles/username/data/")
-    
-    # Run with environment-based configuration
-    app.run(
-        debug=os.getenv('FLASK_DEBUG', 'False').lower() == 'true',
-        host='0.0.0.0', 
-        port=int(os.getenv('PORT', '5000')), 
-        threaded=True
-    )
+    port = int(os.environ.get('PORT', 5000))  # Use Render's PORT if set
+    app.run(host='0.0.0.0', port=port)
