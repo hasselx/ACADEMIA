@@ -6,7 +6,7 @@
     <title>Login - Academic Calculator</title>
     <link rel="icon" type="image/png" href="static/key.png">
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/academic.png') }}">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -14,7 +14,6 @@
             box-sizing: border-box;
             font-family: 'Inter', sans-serif;
         }
-
         body {
             min-height: 100vh;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -23,7 +22,6 @@
             justify-content: center;
             padding: 20px;
         }
-
         .login-container {
             background: white;
             width: 100%;
@@ -35,9 +33,10 @@
             overflow: hidden;
             display: flex;
         }
-
+        
+        /* Solar System Animation Section */
         .illustration-section {
-            background: linear-gradient(135deg, #f0f9ff 0%, #e6f7ff 100%);
+            background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #7c2d92 100%);
             width: 45%;
             position: relative;
             display: flex;
@@ -45,7 +44,6 @@
             justify-content: center;
             overflow: hidden;
         }
-
         .animation-wrapper {
             width: 100%;
             height: 100%;
@@ -54,12 +52,193 @@
             justify-content: center;
             position: relative;
         }
-
-        .academic-animation {
-            width: 90%;
-            height: auto;
-            max-width: 350px;
-            margin: 0 auto;
+        .solar-system {
+            position: relative;
+            width: 320px;
+            height: 320px;
+        }
+        
+        /* Central Hub */
+        .central-hub {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+        }
+        .sun {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #fbbf24 0%, #f97316 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 30px rgba(251, 191, 36, 0.5);
+            animation: pulse 2s ease-in-out infinite;
+            position: relative;
+        }
+        .sun::before {
+            content: '🎓';
+            font-size: 32px;
+        }
+        .glow-ring {
+            position: absolute;
+            inset: 0;
+            width: 80px;
+            height: 80px;
+            background: #fbbf24;
+            border-radius: 50%;
+            opacity: 0.3;
+            animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+        }
+        .glow-ring:nth-child(2) {
+            animation-delay: 1s;
+            opacity: 0.2;
+        }
+        
+        /* Orbital Rings */
+        .orbit-ring {
+            position: absolute;
+            inset: 0;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            animation: rotate 20s linear infinite;
+        }
+        .orbit-ring:nth-child(2) {
+            inset: 16px;
+            border-color: rgba(255, 255, 255, 0.05);
+            animation: rotate-reverse 15s linear infinite;
+        }
+        
+        /* Orbiting Elements */
+        .orbit-element {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            transition: all 0.5s ease;
+        }
+        .orbit-item {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+            transition: all 0.5s ease;
+            position: relative;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+        }
+        .orbit-item.active {
+            transform: scale(1.3);
+            animation: bounce 0.6s ease-in-out;
+            z-index: 20;
+        }
+        .orbit-item.active.cgpa {
+            background: #dbeafe;
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.3);
+        }
+        .orbit-item.active.attendance {
+            background: #dcfce7;
+            box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.3);
+        }
+        .orbit-item.active.holiday {
+            background: #f3e8ff;
+            box-shadow: 0 0 0 4px rgba(147, 51, 234, 0.3);
+        }
+        .orbit-item.active.timetable {
+            background: #fed7aa;
+            box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.3);
+        }
+        .orbit-icon {
+            font-size: 24px;
+            transition: all 0.5s ease;
+        }
+        .orbit-item:not(.active) .orbit-icon {
+            color: rgba(255, 255, 255, 0.7);
+        }
+        .orbit-item.active .orbit-icon.cgpa { color: #3b82f6; }
+        .orbit-item.active .orbit-icon.attendance { color: #22c55e; }
+        .orbit-item.active .orbit-icon.holiday { color: #9333ea; }
+        .orbit-item.active .orbit-icon.timetable { color: #f97316; }
+        
+        /* Sparkle Effects */
+        .sparkle {
+            position: absolute;
+            color: #fbbf24;
+            animation: spin 2s linear infinite;
+        }
+        .sparkle.top-right {
+            top: -8px;
+            right: -8px;
+            font-size: 16px;
+        }
+        .sparkle.bottom-left {
+            bottom: -4px;
+            left: -4px;
+            font-size: 12px;
+            animation: pulse 1s ease-in-out infinite;
+        }
+        
+        /* Label Popup */
+        .orbit-label {
+            position: absolute;
+            bottom: -48px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            padding: 4px 12px;
+            border-radius: 20px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            font-size: 14px;
+            font-weight: 600;
+            white-space: nowrap;
+            opacity: 0;
+            animation: fadeIn 0.5s ease-out forwards;
+        }
+        .orbit-label::before {
+            content: '';
+            position: absolute;
+            top: -4px;
+            left: 50%;
+            transform: translateX(-50%) rotate(45deg);
+            width: 8px;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.9);
+        }
+        
+        /* Twinkling Stars */
+        .star {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: white;
+            border-radius: 50%;
+            animation: twinkle 3s ease-in-out infinite;
+        }
+        
+        /* Academic Universe Text */
+        .universe-text {
+            position: absolute;
+            bottom: 32px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+        }
+        .universe-text h3 {
+            font-size: 24px;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 4px;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        .universe-text p {
+            color: #93c5fd;
+            font-weight: 500;
         }
 
         .curve-container {
@@ -70,7 +249,6 @@
             width: 100px;
             overflow: hidden;
         }
-
         .curve {
             position: absolute;
             right: -50px;
@@ -79,7 +257,6 @@
             background: white;
             border-radius: 50px 0 0 50px;
         }
-
         .form-section {
             flex: 1;
             padding: 40px;
@@ -91,7 +268,6 @@
             overflow-y: auto;
             max-height: 100vh;
         }
-
         .gradient-text {
             font-size: 32px;
             font-weight: 800;
@@ -110,20 +286,17 @@
             background-size: 200% auto;
             letter-spacing: 1px;
         }
-
         @keyframes flow {
             0% { background-position: 0% 50%; }
             50% { background-position: 100% 50%; }
             100% { background-position: 0% 50%; }
         }
-
         .input-group {
             width: 100%;
             max-width: 320px;
             margin-bottom: 20px;
             position: relative;
         }
-
         .input-group input,
         .input-group select {
             width: 100%;
@@ -134,7 +307,6 @@
             transition: all 0.3s;
             background: #f9fafb;
         }
-
         .input-group input:focus,
         .input-group select:focus {
             outline: none;
@@ -142,21 +314,17 @@
             background: white;
             box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
         }
-
         .input-group input::placeholder {
             color: #9ca3af;
         }
-
         .input-group select {
             color: #4b5563;
             cursor: pointer;
         }
-
         .input-group select option {
             background: white;
             color: #4b5563;
         }
-
         .input-row {
             display: flex;
             gap: 15px;
@@ -164,37 +332,31 @@
             max-width: 320px;
             margin-bottom: 20px;
         }
-
         .input-row .input-group {
             margin-bottom: 0;
             flex: 1;
         }
-
         .year-row {
             display: flex;
             gap: 10px;
             align-items: center;
             width: 100%;
         }
-
         .year-row .input-group {
             flex: 1;
             margin-bottom: 0;
         }
-
         .year-separator {
             color: #6b7280;
             font-weight: 500;
             margin: 0 5px;
         }
-
         .forgot-password {
             width: 100%;
             max-width: 320px;
             text-align: right;
             margin-bottom: 20px;
         }
-
         .forgot-password a {
             color: #667eea;
             text-decoration: none;
@@ -202,12 +364,10 @@
             transition: color 0.3s;
             font-weight: 500;
         }
-
         .forgot-password a:hover {
             color: #764ba2;
             text-decoration: underline;
         }
-
         .login-button {
             width: 100%;
             max-width: 320px;
@@ -224,7 +384,6 @@
             position: relative;
             overflow: hidden;
         }
-
         .login-button::before {
             content: "";
             position: absolute;
@@ -235,21 +394,17 @@
             background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
             transition: all 0.6s;
         }
-
         .login-button:hover {
             transform: translateY(-2px);
             box-shadow: 0 8px 16px rgba(102, 126, 234, 0.4);
         }
-
         .login-button:hover::before {
             left: 100%;
         }
-
         .login-button:active {
             transform: translateY(0);
             box-shadow: 0 4px 8px rgba(102, 126, 234, 0.2);
         }
-
         .alert {
             width: 100%;
             max-width: 320px;
@@ -260,50 +415,104 @@
             display: flex;
             align-items: center;
         }
-
         .alert-error {
             background-color: #fee2e2;
             color: #ef4444;
             border: 1px solid #fecaca;
         }
-
         .alert-success {
             background-color: #dcfce7;
             color: #22c55e;
             border: 1px solid #bbf7d0;
         }
-
         .toggle-form {
             margin-top: 20px;
             font-size: 14px;
             color: #4b5563;
         }
-
         .toggle-form a {
             color: #667eea;
             text-decoration: none;
             font-weight: 500;
             transition: color 0.3s;
         }
-
         .toggle-form a:hover {
             color: #764ba2;
             text-decoration: underline;
         }
-
         .form-title {
             font-size: 24px;
             font-weight: 700;
             margin-bottom: 20px;
             color: #1f2937;
         }
-
         .form-container {
             width: 100%;
             max-width: 320px;
             display: flex;
             flex-direction: column;
             align-items: center;
+        }
+
+        /* Solar System Animations */
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        @keyframes rotate-reverse {
+            from { transform: rotate(360deg); }
+            to { transform: rotate(0deg); }
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
+        @keyframes ping {
+            75%, 100% {
+                transform: scale(2);
+                opacity: 0;
+            }
+        }
+        @keyframes bounce {
+            0%, 20%, 53%, 80%, 100% {
+                animation-timing-function: cubic-bezier(0.215, 0.610, 0.355, 1.000);
+                transform: translate3d(0,0,0);
+            }
+            40%, 43% {
+                animation-timing-function: cubic-bezier(0.755, 0.050, 0.855, 0.060);
+                transform: translate3d(0, -8px, 0);
+            }
+            70% {
+                animation-timing-function: cubic-bezier(0.755, 0.050, 0.855, 0.060);
+                transform: translate3d(0, -4px, 0);
+            }
+            90% {
+                transform: translate3d(0,-1px,0);
+            }
+        }
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateX(-50%) translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0);
+            }
+        }
+        @keyframes twinkle {
+            0%, 100% {
+                opacity: 0.3;
+                transform: scale(1);
+            }
+            50% {
+                opacity: 1;
+                transform: scale(1.2);
+            }
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
         }
 
         @media (max-width: 768px) {
@@ -314,89 +523,86 @@
                 max-width: 400px;
                 border-radius: 16px;
             }
-
             .illustration-section {
                 width: 100%;
                 height: 220px;
                 border-radius: 16px 16px 0 0;
             }
-
+            .solar-system {
+                width: 200px;
+                height: 200px;
+            }
+            .sun {
+                width: 60px;
+                height: 60px;
+            }
+            .sun::before {
+                font-size: 24px;
+            }
+            .orbit-item {
+                width: 48px;
+                height: 48px;
+            }
             .curve-container {
                 display: none;
             }
-
             .form-section {
                 padding: 30px 20px;
             }
-
             .input-row {
                 flex-direction: column;
                 gap: 0;
             }
-
             .input-row .input-group {
                 margin-bottom: 20px;
             }
-
             .year-row {
                 flex-direction: column;
                 gap: 0;
             }
-
             .year-row .input-group {
                 margin-bottom: 15px;
             }
-
             .year-separator {
                 display: none;
             }
         }
-
         @media (max-width: 480px) {
             .login-container {
                 margin: 0;
                 border-radius: 0;
                 height: 100vh;
             }
-
             .illustration-section {
                 height: 200px;
                 border-radius: 0;
             }
-
             .form-section {
                 padding: 20px;
                 flex: 1;
             }
-
             .gradient-text {
                 font-size: 28px;
                 margin: 15px 0 25px;
             }
-
             .input-group {
                 margin-bottom: 15px;
             }
-
             .input-group input,
             .input-group select {
                 padding: 12px 16px;
                 font-size: 14px;
             }
-
             .forgot-password {
                 margin-bottom: 15px;
             }
-
             .login-button {
                 padding: 12px;
                 font-size: 14px;
             }
-
             .input-row {
                 margin-bottom: 15px;
             }
-
             .input-row .input-group {
                 margin-bottom: 15px;
             }
@@ -407,83 +613,77 @@
     <div class="login-container">
         <div class="illustration-section">
             <div class="animation-wrapper">
-                <!-- Academic themed SVG animation -->
-                <svg class="academic-animation" viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
-                    <!-- Gradient definitions -->
-                    <defs>
-                        <linearGradient id="bookGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                            <stop offset="0%" stop-color="#667eea" />
-                            <stop offset="100%" stop-color="#764ba2" />
-                        </linearGradient>
-                        <linearGradient id="calculatorGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                            <stop offset="0%" stop-color="#4CAF50" />
-                            <stop offset="100%" stop-color="#8BC34A" />
-                        </linearGradient>
-                        <linearGradient id="capGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                            <stop offset="0%" stop-color="#FF9800" />
-                            <stop offset="100%" stop-color="#F44336" />
-                        </linearGradient>
-                    </defs>
+                <div class="solar-system">
+                    <!-- Central Hub -->
+                    <div class="central-hub">
+                        <div class="sun">
+                            <div class="glow-ring"></div>
+                            <div class="glow-ring"></div>
+                        </div>
+                    </div>
 
-                    <!-- Books Stack -->
-                    <g id="books" opacity="0">
-                        <rect x="50" y="180" width="80" height="12" rx="2" fill="url(#bookGradient)" />
-                        <rect x="55" y="170" width="80" height="12" rx="2" fill="#8BC34A" />
-                        <rect x="60" y="160" width="80" height="12" rx="2" fill="#FF9800" />
-                        <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.3;0.8;1" dur="6s" repeatCount="indefinite"/>
-                    </g>
+                    <!-- Orbital Rings -->
+                    <div class="orbit-ring"></div>
+                    <div class="orbit-ring"></div>
 
-                    <!-- Calculator -->
-                    <g id="calculator" opacity="0">
-                        <rect x="200" y="150" width="60" height="80" rx="8" fill="url(#calculatorGradient)" stroke="#333" stroke-width="2"/>
-                        <rect x="210" y="160" width="40" height="15" rx="2" fill="#333"/>
-                        <!-- Calculator buttons -->
-                        <circle cx="220" cy="185" r="4" fill="#fff"/>
-                        <circle cx="235" cy="185" r="4" fill="#fff"/>
-                        <circle cx="250" cy="185" r="4" fill="#fff"/>
-                        <circle cx="220" cy="200" r="4" fill="#fff"/>
-                        <circle cx="235" cy="200" r="4" fill="#fff"/>
-                        <circle cx="250" cy="200" r="4" fill="#fff"/>
-                        <circle cx="220" cy="215" r="4" fill="#fff"/>
-                        <circle cx="235" cy="215" r="4" fill="#fff"/>
-                        <circle cx="250" cy="215" r="4" fill="#fff"/>
-                        <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.3;0.8;1" dur="6s" begin="1s" repeatCount="indefinite"/>
-                    </g>
+                    <!-- Orbiting Elements -->
+                    <div class="orbit-element" id="orbit-0">
+                        <div class="orbit-item cgpa">
+                            <div class="orbit-icon cgpa">🧮</div>
+                            <div class="sparkle top-right">✨</div>
+                            <div class="sparkle bottom-left">⭐</div>
+                            <div class="orbit-label cgpa">CGPA</div>
+                        </div>
+                    </div>
 
-                    <!-- Graduation Cap -->
-                    <g id="cap" opacity="0">
-                        <polygon points="150,100 250,80 350,100 250,120" fill="url(#capGradient)"/>
-                        <rect x="245" y="100" width="10" height="40" fill="#333"/>
-                        <circle cx="250" cy="145" r="8" fill="#FFD700"/>
-                        <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.3;0.8;1" dur="6s" begin="2s" repeatCount="indefinite"/>
-                    </g>
+                    <div class="orbit-element" id="orbit-1">
+                        <div class="orbit-item attendance">
+                            <div class="orbit-icon attendance">✅</div>
+                            <div class="sparkle top-right">✨</div>
+                            <div class="sparkle bottom-left">⭐</div>
+                            <div class="orbit-label attendance">Attendance</div>
+                        </div>
+                    </div>
 
-                    <!-- Mathematical symbols floating -->
-                    <g id="symbols" opacity="0">
-                        <text x="100" y="80" font-family="Arial" font-size="20" fill="#667eea">∑</text>
-                        <text x="300" y="60" font-family="Arial" font-size="18" fill="#764ba2">π</text>
-                        <text x="80" y="120" font-family="Arial" font-size="16" fill="#4CAF50">∫</text>
-                        <text x="320" y="140" font-family="Arial" font-size="22" fill="#FF9800">√</text>
-                        <animateTransform attributeName="transform" type="translate" values="0,0; 0,-10; 0,0" dur="3s" repeatCount="indefinite"/>
-                        <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.3;0.8;1" dur="6s" begin="3s" repeatCount="indefinite"/>
-                    </g>
+                    <div class="orbit-element" id="orbit-2">
+                        <div class="orbit-item holiday">
+                            <div class="orbit-icon holiday">📅</div>
+                            <div class="sparkle top-right">✨</div>
+                            <div class="sparkle bottom-left">⭐</div>
+                            <div class="orbit-label holiday">Holiday</div>
+                        </div>
+                    </div>
 
-                    <!-- CGPA text -->
-                    <g id="cgpa-text" opacity="0">
-                        <text x="200" y="250" font-family="Inter" font-size="24" font-weight="bold" fill="#667eea" text-anchor="middle">CGPA</text>
-                        <text x="200" y="270" font-family="Inter" font-size="16" fill="#764ba2" text-anchor="middle">Calculator</text>
-                        <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.3;0.8;1" dur="6s" begin="4s" repeatCount="indefinite"/>
-                    </g>
-                </svg>
+                    <div class="orbit-element" id="orbit-3">
+                        <div class="orbit-item timetable">
+                            <div class="orbit-icon timetable">🕐</div>
+                            <div class="sparkle top-right">✨</div>
+                            <div class="sparkle bottom-left">⭐</div>
+                            <div class="orbit-label timetable">Timetable</div>
+                        </div>
+                    </div>
+
+                    <!-- Twinkling Stars -->
+                    <div class="star" style="top: 10%; left: 15%; animation-delay: 0s;"></div>
+                    <div class="star" style="top: 20%; left: 80%; animation-delay: 1s;"></div>
+                    <div class="star" style="top: 70%; left: 10%; animation-delay: 2s;"></div>
+                    <div class="star" style="top: 80%; left: 85%; animation-delay: 0.5s;"></div>
+                    <div class="star" style="top: 30%; left: 90%; animation-delay: 1.5s;"></div>
+                    <div class="star" style="top: 60%; left: 5%; animation-delay: 2.5s;"></div>
+
+                    <!-- Academic Universe Text -->
+                    <div class="universe-text">
+                        <h3>ACADEMIC</h3>
+                        <p>UNIVERSE</p>
+                    </div>
+                </div>
             </div>
             <div class="curve-container">
                 <div class="curve"></div>
             </div>
         </div>
-
         <div class="form-section">
             <h1 class="gradient-text">ACADEMIC HUB</h1>
-
             <!-- Flash messages -->
             {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
@@ -494,7 +694,6 @@
                     {% endfor %}
                 {% endif %}
             {% endwith %}
-
             <!-- Login Form -->
             <div id="loginForm" class="form-container" style="display: block;">
                 <h2 class="form-title">Login to Dashboard</h2>
@@ -502,58 +701,46 @@
                     <div class="input-group">
                         <input type="text" id="username" name="username" placeholder="Username" required>
                     </div>
-
                     <div class="input-group">
                         <input type="password" id="password" name="password" placeholder="Password" required>
                     </div>
-
                     <div class="forgot-password">
                         <a href="#">Forgot Password?</a>
                     </div>
-
                     <button type="submit" class="login-button">LOGIN</button>
                 </form>
-
                 <div class="toggle-form">
                     Don't have an account? <a href="#" onclick="toggleForms('registerForm')">Register now</a>
                 </div>
             </div>
-
             <!-- Registration Form -->
             <div id="registerForm" class="form-container" style="display: none;">
                 <h2 class="form-title">Create Student Account</h2>
                 <form action="{{ url_for('register') }}" method="POST" style="width: 100%; display: flex; flex-direction: column; align-items: center;">
-                    
                     <!-- Student Name -->
                     <div class="input-group">
                         <input type="text" id="reg_student_name" name="student_name" placeholder="Full Name" required>
                     </div>
-
                     <!-- Username -->
                     <div class="input-group">
                         <input type="text" id="reg_username" name="username" placeholder="Username" required>
                     </div>
-
                     <!-- Email -->
                     <div class="input-group">
                         <input type="email" id="reg_email" name="email" placeholder="Email Address" required>
                     </div>
-
                     <!-- Student ID -->
                     <div class="input-group">
                         <input type="text" id="reg_student_id" name="student_id" placeholder="Student ID" required>
                     </div>
-
                     <!-- Phone Number -->
                     <div class="input-group">
                         <input type="tel" id="reg_phone" name="phone" placeholder="Phone Number" required>
                     </div>
-
                     <!-- College -->
                     <div class="input-group">
                         <input type="text" id="reg_college" name="college" placeholder="College/University Name" required>
                     </div>
-
                     <!-- Course -->
                     <div class="input-group">
                         <select id="reg_course" name="course" required>
@@ -580,7 +767,6 @@
                             <option value="Other">Other</option>
                         </select>
                     </div>
-
                     <!-- Study Period (From Year to Year) -->
                     <div class="input-group">
                         <div class="year-row">
@@ -613,27 +799,70 @@
                             </div>
                         </div>
                     </div>
-
                     <!-- Password fields -->
                     <div class="input-group">
                         <input type="password" id="reg_password" name="password" placeholder="Password" required minlength="6">
                     </div>
-
                     <div class="input-group">
                         <input type="password" id="reg_confirm_password" name="confirm_password" placeholder="Confirm Password" required>
                     </div>
-
                     <button type="submit" class="login-button">CREATE ACCOUNT</button>
                 </form>
-
                 <div class="toggle-form">
                     Already have an account? <a href="#" onclick="toggleForms('loginForm')">Login</a>
                 </div>
             </div>
         </div>
     </div>
-
     <script>
+        // Solar System Animation
+        let activeOrbit = 0;
+        const orbitItems = ['cgpa', 'attendance', 'holiday', 'timetable'];
+        
+        function updateOrbits() {
+            const radius = 120;
+            const centerX = 160;
+            const centerY = 160;
+            
+            orbitItems.forEach((item, index) => {
+                const element = document.getElementById(`orbit-${index}`);
+                const orbitItem = element.querySelector('.orbit-item');
+                const sparkles = element.querySelectorAll('.sparkle');
+                const label = element.querySelector('.orbit-label');
+                
+                // Calculate position
+                const angle = (index * 90 + (Date.now() / 50) % 360) * Math.PI / 180;
+                const x = Math.cos(angle) * radius;
+                const y = Math.sin(angle) * radius;
+                
+                element.style.transform = `translate(-50%, -50%) translate(${x}px, ${y}px)`;
+                
+                // Update active state
+                if (index === activeOrbit) {
+                    orbitItem.classList.add('active');
+                    sparkles.forEach(sparkle => sparkle.style.display = 'block');
+                    label.style.display = 'block';
+                } else {
+                    orbitItem.classList.remove('active');
+                    sparkles.forEach(sparkle => sparkle.style.display = 'none');
+                    label.style.display = 'none';
+                }
+            });
+        }
+
+        // Cycle through active orbits
+        setInterval(() => {
+            activeOrbit = (activeOrbit + 1) % 4;
+        }, 2000);
+
+        // Update orbit positions
+        function animate() {
+            updateOrbits();
+            requestAnimationFrame(animate);
+        }
+        animate();
+
+        // Original form functionality
         function toggleForms(formToShow) {
             if (formToShow === 'loginForm') {
                 document.getElementById('loginForm').style.display = 'block';
@@ -649,7 +878,7 @@
             const fromYear = parseInt(this.value);
             const toYearSelect = document.getElementById('reg_to_year');
             const toYearOptions = toYearSelect.querySelectorAll('option');
-            
+                        
             // Enable/disable to_year options based on from_year
             toYearOptions.forEach(option => {
                 if (option.value && parseInt(option.value) <= fromYear) {
@@ -660,7 +889,7 @@
                     option.style.color = '#4b5563';
                 }
             });
-            
+                        
             // Reset to_year if it's now invalid
             if (toYearSelect.value && parseInt(toYearSelect.value) <= fromYear) {
                 toYearSelect.value = '';
@@ -674,23 +903,23 @@
                 regForm.addEventListener('submit', function(e) {
                     const password = document.getElementById('reg_password').value;
                     const confirmPassword = document.getElementById('reg_confirm_password').value;
-                    
+                                        
                     if (password !== confirmPassword) {
                         e.preventDefault();
                         alert('Passwords do not match!');
                         return;
                     }
-                    
+                                        
                     // Validate year range
                     const fromYear = parseInt(document.getElementById('reg_from_year').value);
                     const toYear = parseInt(document.getElementById('reg_to_year').value);
-                    
+                                        
                     if (fromYear && toYear && fromYear >= toYear) {
                         e.preventDefault();
                         alert('To Year must be after From Year!');
                         return;
                     }
-                    
+                                        
                     // Validate phone number (basic)
                     const phone = document.getElementById('reg_phone').value;
                     const phoneRegex = /^[+]?[\d\s\-()]{10,}$/;
