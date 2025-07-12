@@ -438,8 +438,17 @@ def send_email_reminder(user_email, reminder_data):
         sender_email = os.getenv('SENDER_EMAIL')
         sender_password = os.getenv('SENDER_PASSWORD')
 
+        print(f"DEBUG: Email config - Server: {smtp_server}, Port: {smtp_port}")
+        print(f"DEBUG: Sender email: {sender_email}")
+        print(f"DEBUG: Password configured: {'Yes' if sender_password else 'No'}")
+        print(f"DEBUG: Recipient: {user_email}")
+
         if not sender_email or not sender_password:
-            print("Email credentials not configured")
+            print("❌ Email credentials not configured in .env file")
+            return False
+
+        if sender_email == 'your-system-email@gmail.com':
+            print("❌ Email credentials are still placeholder values")
             return False
 
         # Create message
@@ -470,18 +479,27 @@ def send_email_reminder(user_email, reminder_data):
         msg.attach(MIMEText(body, 'plain'))
 
         # Send email
+        print(f"DEBUG: Attempting to connect to {smtp_server}:{smtp_port}")
         server = smtplib.SMTP(smtp_server, smtp_port)
+        print("DEBUG: Connected to SMTP server")
+
         server.starttls()
+        print("DEBUG: Started TLS")
+
         server.login(sender_email, sender_password)
+        print("DEBUG: Logged in successfully")
+
         text = msg.as_string()
         server.sendmail(sender_email, user_email, text)
-        server.quit()
+        print("DEBUG: Email sent successfully")
 
-        print(f"Email reminder sent to {user_email} for: {reminder_data['title']}")
+        server.quit()
+        print(f"✅ Email reminder sent to {user_email} for: {reminder_data['title']}")
         return True
 
     except Exception as e:
-        print(f"Error sending email reminder: {e}")
+        print(f"❌ Error sending email reminder: {e}")
+        print(f"❌ Error type: {type(e).__name__}")
         return False
 
 def check_and_send_email_reminders():
@@ -787,20 +805,19 @@ def get_reminders():
                         reminder['countdown'] = f'{abs_days} days overdue'
                     reminder['priority'] = 'critical'
                 elif days_left == 0:
+                    # All items due today go to "Due Today" regardless of specific time
+                    reminder['status'] = 'due_today'
                     if hours_left < 0:
-                        reminder['status'] = 'overdue'
-                        reminder['countdown'] = 'Overdue today'
-                        reminder['priority'] = 'critical'
+                        # Past the specific time but still "due today"
+                        reminder['countdown'] = 'Due today (time passed)'
+                        reminder['priority'] = 'urgent'
                     elif hours_left < 2:
-                        reminder['status'] = 'due_now'
                         reminder['countdown'] = f'Due in {int(hours_left * 60)} minutes!'
                         reminder['priority'] = 'urgent'
                     elif hours_left < 6:
-                        reminder['status'] = 'due_today'
                         reminder['countdown'] = f'Due in {int(hours_left)} hours'
                         reminder['priority'] = 'high'
                     else:
-                        reminder['status'] = 'due_today'
                         reminder['countdown'] = 'Due today!'
                         reminder['priority'] = 'high'
                 elif days_left == 1:
@@ -1037,21 +1054,32 @@ def delete_reminder(reminder_id):
 @login_required
 def email_settings():
     """Get or update email notification settings"""
+    print(f"🔥 EMAIL SETTINGS ENDPOINT CALLED - Method: {request.method}")
     try:
         username = session.get('username')
+        print(f"🔥 Username from session: {username}")
         if not username:
+            print("🔥 No username in session")
             return jsonify({'error': 'User not found in session'}), 401
 
         if request.method == 'GET':
             # Get current email settings
             user_data = get_user_data(username, 'email_settings')
+
+            # Get user's registration email
+            user_profile = find_user_by_username(username)
+            user_email = user_profile.get('email', '') if user_profile else ''
+
             settings = user_data.get('settings', {
                 'enabled': False,
                 'notify_24h': True,
                 'notify_1h': True,
                 'notify_overdue': True,
-                'email': ''
+                'email': user_email  # Use registration email
             })
+
+            # Always use the registration email (override any stored email)
+            settings['email'] = user_email
             return jsonify({'settings': settings})
 
         elif request.method == 'POST':
@@ -1060,12 +1088,16 @@ def email_settings():
             if not data:
                 return jsonify({'error': 'No data provided'}), 400
 
+            # Get user's registration email (always use this, ignore any email from frontend)
+            user_profile = find_user_by_username(username)
+            user_email = user_profile.get('email', '') if user_profile else ''
+
             settings = {
                 'enabled': data.get('enabled', False),
                 'notify_24h': data.get('notify_24h', True),
                 'notify_1h': data.get('notify_1h', True),
                 'notify_overdue': data.get('notify_overdue', True),
-                'email': data.get('email', ''),
+                'email': user_email,  # Always use registration email
                 'updated_at': datetime.now().isoformat()
             }
 
@@ -1082,14 +1114,20 @@ def email_settings():
 @login_required
 def send_test_email():
     """Send a test email reminder"""
+    print("🔥 TEST EMAIL ENDPOINT CALLED!")
     try:
         username = session.get('username')
+        print(f"🔥 Username from session: {username}")
         if not username:
+            print("🔥 No username in session")
             return jsonify({'error': 'User not found in session'}), 401
 
-        data = request.get_json()
-        if not data or not data.get('email'):
-            return jsonify({'error': 'Email address required'}), 400
+        # Get user's registration email
+        user_profile = find_user_by_username(username)
+        if not user_profile or not user_profile.get('email'):
+            return jsonify({'error': 'No email address found in your profile'}), 400
+
+        user_email = user_profile.get('email')
 
         # Create test reminder data
         test_reminder = {
@@ -1100,9 +1138,9 @@ def send_test_email():
             'countdown': 'Due in 1 day'
         }
 
-        # Send test email
-        if send_email_reminder(data['email'], test_reminder):
-            return jsonify({'success': True, 'message': 'Test email sent successfully!'})
+        # Send test email to user's registration email
+        if send_email_reminder(user_email, test_reminder):
+            return jsonify({'success': True, 'message': f'Test email sent successfully to {user_email}!'})
         else:
             return jsonify({'error': 'Failed to send test email. Check email configuration.'}), 500
 

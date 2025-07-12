@@ -422,17 +422,15 @@ function updateCountdownDisplays() {
         newStatus = 'overdue'
         newCountdown = `🚨 ${Math.abs(daysLeft)} days overdue`
       } else if (daysLeft === 0) {
+        // All items due today go to "Due Today" regardless of specific time
+        newStatus = 'due_today'
         if (hoursLeft < 0) {
-          newStatus = 'overdue'
-          newCountdown = '🚨 Overdue today'
+          newCountdown = '📅 Due today (time passed)'
         } else if (hoursLeft < 2) {
-          newStatus = 'due_now'
           newCountdown = `⏰ Due in ${Math.floor(hoursLeft * 60)} minutes!`
         } else if (hoursLeft < 6) {
-          newStatus = 'due_today'
           newCountdown = `📅 Due in ${Math.floor(hoursLeft)} hours`
         } else {
-          newStatus = 'due_today'
           newCountdown = '📅 Due today!'
         }
       } else if (daysLeft === 1) {
@@ -536,6 +534,11 @@ function loadEmailSettings() {
           document.getElementById('notify1h').checked = settings.notify_1h
           document.getElementById('notifyOverdue').checked = settings.notify_overdue
 
+          // Make email field read-only since it comes from registration
+          document.getElementById('emailAddress').readOnly = true
+          document.getElementById('emailAddress').style.backgroundColor = '#f8f9fa'
+          document.getElementById('emailAddress').title = 'Email address from your registration (cannot be changed here)'
+
           // Show/hide email options based on enabled state
           const emailOptions = document.getElementById('emailOptions')
           emailOptions.style.display = settings.enabled ? 'block' : 'none'
@@ -554,16 +557,13 @@ function saveEmailSettings() {
   try {
     const settings = {
       enabled: document.getElementById('emailEnabled').checked,
-      email: document.getElementById('emailAddress').value.trim(),
       notify_24h: document.getElementById('notify24h').checked,
       notify_1h: document.getElementById('notify1h').checked,
       notify_overdue: document.getElementById('notifyOverdue').checked
+      // Note: email is not sent - backend uses registration email automatically
     }
 
-    if (settings.enabled && !settings.email) {
-      showNotification('Please enter an email address', 'error')
-      return
-    }
+    // No need to validate email since it comes from registration
 
     fetch('/api/reminders/email-settings', {
       method: 'POST',
@@ -598,7 +598,7 @@ function sendTestEmail() {
     const email = document.getElementById('emailAddress').value.trim()
 
     if (!email) {
-      showNotification('Please enter an email address first', 'error')
+      showNotification('No email address found in your profile', 'error')
       return
     }
 
@@ -607,12 +607,13 @@ function sendTestEmail() {
     testBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...'
     testBtn.disabled = true
 
+    // No need to send email in body - backend uses registration email
     fetch('/api/reminders/send-test-email', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ email: email })
+      body: JSON.stringify({})
     })
     .then(response => response.json())
     .then(data => {
@@ -1051,14 +1052,13 @@ function enhanceReminderData(reminder) {
         enhanced.status = 'overdue'
         enhanced.countdown = `${Math.abs(daysLeft)} days overdue`
       } else if (daysLeft === 0) {
+        // All items due today go to "Due Today" regardless of specific time
+        enhanced.status = 'due_today'
         if (hoursLeft < 0) {
-          enhanced.status = 'overdue'
-          enhanced.countdown = 'Overdue today'
+          enhanced.countdown = 'Due today (time passed)'
         } else if (hoursLeft < 2) {
-          enhanced.status = 'due_now'
           enhanced.countdown = `Due in ${Math.floor(hoursLeft * 60)} minutes!`
         } else {
-          enhanced.status = 'due_today'
           enhanced.countdown = 'Due today!'
         }
       } else if (daysLeft === 1) {
