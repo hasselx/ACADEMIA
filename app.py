@@ -4,10 +4,14 @@ from firebase_admin import credentials, firestore
 from datetime import datetime, timedelta
 import json
 import os
+import re
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 import uuid
 from dotenv import load_dotenv
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 # Load environment variables from .env file
 load_dotenv()
@@ -20,7 +24,7 @@ app.secret_key = os.getenv('SECRET_KEY', 'fallback-secret-key-for-development')
 # Session configuration using environment variables
 app.config['SESSION_PERMANENT'] = False
 app.config['SESSION_COOKIE_HTTPONLY'] = True
-app.config['SESSION_COOKIE_SECURE'] = os.getenv('FLASK_ENV') == 'production'  # Only secure in production
+app.config['SESSION_COOKIE_SECURE'] = os.getenv('FLASK_ENV') == 'production'
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=int(os.getenv('SESSION_TIMEOUT_MINUTES', '30')))
 
@@ -73,7 +77,7 @@ def get_user_profile_ref(username):
     return db.collection('users').document('students').collection('profiles').document(username)
 
 def get_user_data_ref(username):
-    """Get Firebase reference for user data (cgpa, attendance, timetable)"""
+    """Get Firebase reference for user data (cgpa, attendance, timetable, reminders)"""
     return db.collection('users').document('students').collection('profiles').document(username).collection('data')
 
 def find_user_by_username(username):
@@ -114,7 +118,7 @@ def create_user_profile(username, user_data):
         return False
 
 def save_user_data(username, data_type, data):
-    """Save user data (cgpa, attendance, timetable) to Firebase"""
+    """Save user data (cgpa, attendance, timetable, reminders) to Firebase"""
     try:
         data_ref = get_user_data_ref(username).document(data_type)
         data_ref.set({
@@ -127,7 +131,7 @@ def save_user_data(username, data_type, data):
         return False
 
 def get_user_data(username, data_type):
-    """Get user data (cgpa, attendance, timetable) from Firebase"""
+    """Get user data (cgpa, attendance, timetable, reminders) from Firebase"""
     try:
         data_ref = get_user_data_ref(username).document(data_type)
         doc = data_ref.get()
@@ -137,6 +141,46 @@ def get_user_data(username, data_type):
     except Exception as e:
         print(f"Error getting {data_type} data for {username}: {e}")
         return {}
+
+def remove_duplicate_reminders(reminders_list):
+    """Remove duplicate reminders based on title, type, and due_date"""
+    seen = set()
+    unique_reminders = []
+
+    for reminder in reminders_list:
+        # Create a unique key based on title, type, and due_date
+        key = (
+            reminder.get('title', '').strip().lower(),
+            reminder.get('type', '').strip().lower(),
+            reminder.get('due_date', '').strip()
+        )
+
+        if key not in seen:
+            seen.add(key)
+            unique_reminders.append(reminder)
+        else:
+            print(f"DEBUG: Removing duplicate reminder: {reminder.get('title')} ({reminder.get('type')})")
+
+    print(f"DEBUG: Removed {len(reminders_list) - len(unique_reminders)} duplicates")
+    return unique_reminders
+
+def is_duplicate_reminder(new_reminder, existing_reminders):
+    """Check if a new reminder is a duplicate of existing ones"""
+    new_key = (
+        new_reminder.get('title', '').strip().lower(),
+        new_reminder.get('type', '').strip().lower(),
+        new_reminder.get('due_date', '').strip()
+    )
+
+    for existing in existing_reminders:
+        existing_key = (
+            existing.get('title', '').strip().lower(),
+            existing.get('type', '').strip().lower(),
+            existing.get('due_date', '').strip()
+        )
+        if new_key == existing_key:
+            return True
+    return False
 
 def add_user_calculation(username, calc_type, calculation_data):
     """Add calculation record to user's data"""
@@ -165,6 +209,337 @@ def add_user_calculation(username, calc_type, calculation_data):
         print(f"Error adding {calc_type} calculation for {username}: {e}")
         return False
 
+def parse_date_from_text(text):
+    """Parse date from various text formats including WhatsApp and email formats"""
+    import re
+    from datetime import datetime, timedelta
+
+    text = text.lower().strip()
+    today = datetime.now()
+
+    # Month name mappings for different formats
+    months = {
+        'january': 1, 'jan': 1, 'february': 2, 'feb': 2, 'march': 3, 'mar': 3,
+        'april': 4, 'apr': 4, 'may': 5, 'june': 6, 'jun': 6,
+        'july': 7, 'jul': 7, 'august': 8, 'aug': 8, 'september': 9, 'sep': 9, 'sept': 9,
+        'october': 10, 'oct': 10, 'november': 11, 'nov': 11, 'december': 12, 'dec': 12
+    }
+
+    # Enhanced date patterns
+    patterns = [
+        # DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY
+        (r'(\d{1,2})[/\-\.](\d{1,2})[/\-\.](\d{4})', lambda m: datetime(int(m.group(3)), int(m.group(2)), int(m.group(1)))),
+        # MM/DD/YYYY (US format)
+        (r'(\d{1,2})[/\-\.](\d{1,2})[/\-\.](\d{4})', lambda m: datetime(int(m.group(3)), int(m.group(1)), int(m.group(2)))),
+        # DD/MM, DD-MM, DD.MM (current year)
+        (r'(\d{1,2})[/\-\.](\d{1,2})(?![/\-\.]\d)', lambda m: datetime(today.year, int(m.group(2)), int(m.group(1)))),
+        # YYYY-MM-DD (ISO format)
+        (r'(\d{4})[/\-\.](\d{1,2})[/\-\.](\d{1,2})', lambda m: datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)))),
+        # Month DD, YYYY or Month DD
+        (r'(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)\s+(\d{1,2}),?\s*(\d{4})?',
+         lambda m: datetime(int(m.group(3)) if m.group(3) else today.year, months[m.group(1)], int(m.group(2)))),
+        # DD Month YYYY or DD Month
+        (r'(\d{1,2})\s+(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)\s*(\d{4})?',
+         lambda m: datetime(int(m.group(3)) if m.group(3) else today.year, months[m.group(2)], int(m.group(1)))),
+        # DDth/st/nd/rd Month YYYY (e.g., "14th July", "1st March")
+        (r'(\d{1,2})(?:st|nd|rd|th)?\s+(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)\s*(\d{4})?',
+         lambda m: datetime(int(m.group(3)) if m.group(3) else today.year, months[m.group(2)], int(m.group(1)))),
+        # Month DDth/st/nd/rd (e.g., "July 14th", "March 1st")
+        (r'(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)\s+(\d{1,2})(?:st|nd|rd|th)?\s*(\d{4})?',
+         lambda m: datetime(int(m.group(3)) if m.group(3) else today.year, months[m.group(1)], int(m.group(2)))),
+    ]
+
+    # Enhanced relative dates
+    relative_patterns = [
+        (r'\btoday\b', lambda: today),
+        (r'\btomorrow\b', lambda: today + timedelta(days=1)),
+        (r'\byesterday\b', lambda: today - timedelta(days=1)),
+        (r'\bnext week\b', lambda: today + timedelta(days=7)),
+        (r'\bnext month\b', lambda: today + timedelta(days=30)),
+        (r'\bin (\d+) days?\b', lambda m: today + timedelta(days=int(m.group(1)))),
+        (r'\bin (\d+) weeks?\b', lambda m: today + timedelta(weeks=int(m.group(1)))),
+        (r'\bin a week\b', lambda: today + timedelta(days=7)),
+        (r'\bin a month\b', lambda: today + timedelta(days=30)),
+        (r'\bday after tomorrow\b', lambda: today + timedelta(days=2)),
+        (r'\bthis (monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b',
+         lambda m: today + timedelta(days=((['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].index(m.group(1)) - today.weekday()) % 7))),
+        (r'\bnext (monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b',
+         lambda m: today + timedelta(days=(((['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].index(m.group(1)) - today.weekday()) % 7) or 7))),
+    ]
+
+    # Try relative patterns first
+    for pattern, converter in relative_patterns:
+        match = re.search(pattern, text)
+        if match:
+            try:
+                # Check if the lambda expects arguments by checking parameter count
+                import inspect
+                sig = inspect.signature(converter)
+                if len(sig.parameters) > 0:
+                    return converter(match)
+                else:
+                    return converter()
+            except (ValueError, IndexError, TypeError):
+                continue
+
+    # Day names (this week or next week)
+    days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+    for i, day in enumerate(days):
+        if f' {day}' in text or text.startswith(day):
+            days_ahead = i - today.weekday()
+            if days_ahead <= 0:  # Target day already happened this week
+                days_ahead += 7
+            return today + timedelta(days=days_ahead)
+
+    # Try date patterns
+    for pattern, converter in patterns:
+        match = re.search(pattern, text)
+        if match:
+            try:
+                return converter(match)
+            except (ValueError, IndexError):
+                continue
+
+    return None
+
+def classify_reminder_type(text):
+    """Enhanced classification of reminder type based on text content with weighted scoring"""
+    text = text.lower()
+
+    # Enhanced keywords with weights
+    exam_keywords = {
+        'exam': 3, 'examination': 3, 'test': 2, 'quiz': 2, 'midterm': 3, 'final': 3,
+        'assessment': 2, 'evaluation': 2, 'viva': 3, 'oral': 2, 'written': 1,
+        'hall': 2, 'room': 1, 'invigilator': 3, 'duration': 2, 'marks': 1
+    }
+
+    assignment_keywords = {
+        'assignment': 3, 'homework': 3, 'task': 2, 'submit': 2, 'submission': 2,
+        'due': 2, 'deadline': 3, 'upload': 2, 'file': 1, 'document': 1,
+        'pdf': 1, 'word': 1, 'plagiarism': 2, 'turnitin': 2, 'late': 2,
+        'penalty': 2, 'extension': 2, 'work': 1
+    }
+
+    project_keywords = {
+        'project': 4, 'presentation': 3, 'seminar': 3, 'thesis': 3, 'research': 3,
+        'report': 2, 'paper': 2, 'study': 1, 'analysis': 2, 'survey': 2,
+        'experiment': 2, 'data': 1, 'findings': 2, 'conclusion': 2, 'abstract': 2,
+        'bibliography': 2, 'references': 2, 'slides': 2, 'ppt': 2, 'powerpoint': 2,
+        'demo': 2, 'prototype': 2, 'implementation': 2
+    }
+
+    # Calculate weighted scores
+    exam_score = sum(weight for keyword, weight in exam_keywords.items() if keyword in text)
+    assignment_score = sum(weight for keyword, weight in assignment_keywords.items() if keyword in text)
+    project_score = sum(weight for keyword, weight in project_keywords.items() if keyword in text)
+
+    # Context-based adjustments
+    if any(phrase in text for phrase in ['group project', 'team project', 'final project', 'project submission']):
+        project_score += 6  # Strong indicator for project
+
+    if any(phrase in text for phrase in ['individual assignment', 'personal task', 'homework']):
+        assignment_score += 3
+
+    if any(phrase in text for phrase in ['final exam', 'midterm exam', 'entrance exam']):
+        exam_score += 5
+
+    # Special case: "project submission" should always be project, not assignment
+    if 'project submission' in text:
+        project_score += 10  # Very strong indicator
+
+    # Time-based hints
+    if any(phrase in text for phrase in ['at', 'hall', 'room', 'venue', 'location']):
+        exam_score += 2  # Exams usually have specific venues
+
+    if any(phrase in text for phrase in ['before', 'by', 'deadline', 'submit by']):
+        assignment_score += 2  # Assignments have submission deadlines
+
+    # Subject-specific patterns
+    if any(phrase in text for phrase in ['lab report', 'practical', 'experiment']):
+        assignment_score += 3
+
+    if any(phrase in text for phrase in ['defense', 'viva', 'presentation']):
+        project_score += 3
+
+    # Return type with highest score, with minimum threshold
+    max_score = max(exam_score, assignment_score, project_score)
+
+    if max_score == 0:
+        return 'assignment'  # Default fallback
+
+    if exam_score == max_score:
+        return 'exam'
+    elif assignment_score == max_score:
+        return 'assignment'
+    else:
+        return 'project'
+
+def extract_title_from_message(text, reminder_type):
+    """Extract a meaningful title from the message text"""
+    import re
+
+    text = text.strip()
+    lines = text.split('\n')
+
+    # Remove common email/message prefixes
+    first_line = lines[0] if lines else text
+    first_line = re.sub(r'^(re:|fwd:|subject:|from:|to:)', '', first_line, flags=re.IGNORECASE).strip()
+
+    # Look for subject-specific patterns (ordered by priority)
+    subject_patterns = [
+        # Pattern for "FOR [SUBJECT]" - most common in academic messages
+        r'for\s+([\w\s]+?)(?:\s+on|\s+at|\s*$)',
+        r'in\s+([\w\s]+?)(?:\s+on|\s+at|\s*$)',
+        # Pattern for "your [SUBJECT] assignment/exam/project" - extract just the subject
+        r'your\s+([\w\s]+?)\s+(assignment|homework|task|exam|test|quiz|project|presentation)',
+        # Pattern for "submit your [SUBJECT] assignment" - extract just the subject
+        r'submit\s+your\s+([\w\s]+?)\s+(assignment|homework|task|exam|test|quiz|project)',
+        # Pattern for "[SUBJECT] assignment/exam/project"
+        r'([\w\s]+?)\s+(assignment|homework|task|exam|test|quiz|project|presentation)',
+        # Pattern for "[SUBJECT] is due"
+        r'([\w\s]+?)\s+is\s+due',
+        # Pattern for "[SUBJECT] submission"
+        r'([\w\s]+?)\s+submission',
+        # Pattern for general "submit [SUBJECT]" (fallback)
+        r'submit\s+([\w\s]+?)(?:\s+on|\s+at|\s*$)',
+    ]
+
+    for pattern in subject_patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            title = match.group(1).strip()
+            # Clean up the title
+            title = re.sub(r'\b(the|a|an)\b', '', title, flags=re.IGNORECASE).strip()
+            if len(title) > 2 and len(title) < 50:
+                return title.upper()  # Return in uppercase for consistency
+
+    # Fallback: use first meaningful sentence
+    sentences = re.split(r'[.!?]', first_line)
+    for sentence in sentences:
+        sentence = sentence.strip()
+        if len(sentence) > 10 and len(sentence) < 100:
+            # Remove common words at the beginning
+            sentence = re.sub(r'^(hi|hello|dear|students|reminder|notice|important)', '', sentence, flags=re.IGNORECASE).strip()
+            if sentence:
+                return sentence[:50] + ('...' if len(sentence) > 50 else '')
+
+    # Final fallback
+    if len(first_line) > 10:
+        return first_line[:50] + ('...' if len(first_line) > 50 else '')
+
+    return f"{reminder_type.title()} Reminder"
+
+def send_email_reminder(user_email, reminder_data):
+    """Send email reminder to user"""
+    try:
+        # Email configuration from environment variables
+        smtp_server = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
+        smtp_port = int(os.getenv('SMTP_PORT', '587'))
+        sender_email = os.getenv('SENDER_EMAIL')
+        sender_password = os.getenv('SENDER_PASSWORD')
+
+        if not sender_email or not sender_password:
+            print("Email credentials not configured")
+            return False
+
+        # Create message
+        msg = MIMEMultipart()
+        msg['From'] = sender_email
+        msg['To'] = user_email
+        msg['Subject'] = f"Reminder: {reminder_data['title']}"
+
+        # Email body
+        body = f"""
+        Hello!
+
+        This is a reminder about your upcoming {reminder_data['type']}:
+
+        Title: {reminder_data['title']}
+        Type: {reminder_data['type'].title()}
+        Due Date: {reminder_data.get('formatted_due_date', 'Not specified')}
+        Description: {reminder_data.get('description', 'No description')}
+
+        Status: {reminder_data.get('countdown', 'No due date')}
+
+        Don't forget to complete this task on time!
+
+        Best regards,
+        Smart Student Reminder System
+        """
+
+        msg.attach(MIMEText(body, 'plain'))
+
+        # Send email
+        server = smtplib.SMTP(smtp_server, smtp_port)
+        server.starttls()
+        server.login(sender_email, sender_password)
+        text = msg.as_string()
+        server.sendmail(sender_email, user_email, text)
+        server.quit()
+
+        print(f"Email reminder sent to {user_email} for: {reminder_data['title']}")
+        return True
+
+    except Exception as e:
+        print(f"Error sending email reminder: {e}")
+        return False
+
+def check_and_send_email_reminders():
+    """Check for reminders that need email notifications"""
+    try:
+        # This would typically be called by a scheduled job
+        # For now, we'll implement the logic but not automatically trigger it
+
+        # Get all users (in a real implementation, you'd iterate through all users)
+        # For demo purposes, we'll just return the structure
+
+        users_to_notify = []
+
+        # Logic to find reminders that need email notifications
+        # - Due in 24 hours
+        # - Due in 1 hour
+        # - Overdue
+
+        return users_to_notify
+
+    except Exception as e:
+        print(f"Error checking email reminders: {e}")
+        return []
+
+def extract_subject_from_message(text):
+    """Extract subject/course name from message"""
+    import re
+
+    # Common subject patterns - using word boundaries to avoid partial matches
+    subject_patterns = [
+        r'\b(data structures?|ds)\b',
+        r'\b(machine learning|ml)\b',
+        r'\b(artificial intelligence|ai)\b',
+        r'\b(database management|dbms)\b',
+        r'\b(operating systems?|os)\b',
+        r'\b(computer networks?|cn)\b',
+        r'\b(software engineering)\b',  # Removed 'se' to avoid false matches
+        r'\b(web development|web dev)\b',
+        r'\b(mobile computing|mobile)\b',
+        r'\b(cyber security|security)\b',
+        r'\b(mathematics|math|maths)\b',
+        r'\b(physics|phy)\b',
+        r'\b(chemistry|chem)\b',
+        r'\b(english|eng)\b',
+        r'\b(management|mgmt)\b',
+        r'\b(electronics?|electronic)\b',  # Added electronics
+        r'\b(data science)\b',  # Added data science
+        r'\b(circuit)\b',  # Added circuit
+    ]
+
+    text_lower = text.lower()
+    for pattern in subject_patterns:
+        match = re.search(pattern, text_lower)
+        if match:
+            return match.group(1).title()
+
+    return None
+
 # Login required decorator
 def login_required(f):
     @wraps(f)
@@ -178,7 +553,7 @@ def login_required(f):
 @app.route('/')
 @login_required
 def index():
-    print(f"Index accessed by user: {session.get('username', 'Unknown')}")
+    print(f"Index accessed by user: {session.get('username', 'Anonymous')}")
     return render_template('index.html')
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -308,6 +683,433 @@ def logout():
     flash('You have been logged out successfully.', 'success')
     return redirect(url_for('login'))
 
+# Reminder API Routes
+@app.route('/api/test', methods=['GET'])
+def test_endpoint():
+    """Test endpoint to verify server is working"""
+    print("DEBUG: Test endpoint called!")
+    return jsonify({'status': 'working', 'message': 'Server is responding'})
+
+@app.route('/api/reminders/cleanup-duplicates', methods=['POST'])
+@login_required
+def cleanup_duplicate_reminders():
+    """Clean up existing duplicate reminders"""
+    try:
+        username = session.get('username')
+        if not username:
+            return jsonify({'error': 'Please log in to clean up reminders'}), 401
+
+        # Get existing reminders
+        reminders_data = get_user_data(username, 'reminders')
+        if 'reminders' in reminders_data:
+            original_reminders = reminders_data['reminders']
+        else:
+            return jsonify({'message': 'No reminders found'}), 200
+
+        # Remove duplicates
+        cleaned_reminders = remove_duplicate_reminders(original_reminders)
+
+        # Save cleaned data back to Firebase
+        if save_user_data(username, 'reminders', {'reminders': cleaned_reminders}):
+            duplicates_removed = len(original_reminders) - len(cleaned_reminders)
+            return jsonify({
+                'success': True,
+                'message': f'Cleanup complete! Removed {duplicates_removed} duplicate reminders.',
+                'original_count': len(original_reminders),
+                'final_count': len(cleaned_reminders),
+                'duplicates_removed': duplicates_removed
+            })
+        else:
+            return jsonify({'error': 'Error saving cleaned reminders'}), 500
+
+    except Exception as e:
+        print(f"Error cleaning up duplicates: {e}")
+        return jsonify({'error': 'Error cleaning up duplicates'}), 500
+
+@app.route('/api/reminders', methods=['GET'])
+@login_required
+def get_reminders():
+    """Get user's reminders from Firebase"""
+    try:
+        username = session.get('username')
+        if not username:
+            return jsonify({'error': 'Please log in to view reminders'}), 401
+        
+        print(f"DEBUG: Fetching reminders for username: {username}")
+
+        # Let's check what's actually in Firebase
+        try:
+            data_ref = get_user_data_ref(username).document('reminders')
+            doc = data_ref.get()
+            print(f"DEBUG: Document exists: {doc.exists}")
+            if doc.exists:
+                raw_data = doc.to_dict()
+                print(f"DEBUG: Raw document data: {raw_data}")
+            else:
+                print("DEBUG: No reminders document found")
+        except Exception as debug_e:
+            print(f"DEBUG: Error checking Firebase: {debug_e}")
+
+        reminders_data = get_user_data(username, 'reminders')
+        print(f"DEBUG: Reminders data from get_user_data: {reminders_data}")
+
+        # Fix: The data structure is data.reminders, not just reminders
+        if 'reminders' in reminders_data:
+            reminders_list = reminders_data['reminders']
+        else:
+            reminders_list = []
+        print(f"DEBUG: Reminders list before deduplication: {len(reminders_list)} items")
+
+        # Remove duplicates
+        reminders_list = remove_duplicate_reminders(reminders_list)
+        print(f"DEBUG: Reminders list after deduplication: {len(reminders_list)} items")
+
+        # TEMPORARY: Skip date processing to test basic functionality
+        print(f"DEBUG: About to return {len(reminders_list)} reminders")
+        return jsonify({'reminders': reminders_list})
+
+        # Add enhanced countdown and status to each reminder (DISABLED FOR NOW)
+        today = datetime.now()
+        for reminder in reminders_list:
+            if reminder.get('due_date'):
+                due_date = datetime.fromisoformat(reminder['due_date'])
+                time_diff = due_date - today
+                days_left = (due_date.date() - today.date()).days
+                hours_left = time_diff.total_seconds() / 3600
+
+                # Enhanced status and countdown calculation
+                if days_left < 0:
+                    reminder['status'] = 'overdue'
+                    abs_days = abs(days_left)
+                    if abs_days == 1:
+                        reminder['countdown'] = '1 day overdue'
+                    else:
+                        reminder['countdown'] = f'{abs_days} days overdue'
+                    reminder['priority'] = 'critical'
+                elif days_left == 0:
+                    if hours_left < 0:
+                        reminder['status'] = 'overdue'
+                        reminder['countdown'] = 'Overdue today'
+                        reminder['priority'] = 'critical'
+                    elif hours_left < 2:
+                        reminder['status'] = 'due_now'
+                        reminder['countdown'] = f'Due in {int(hours_left * 60)} minutes!'
+                        reminder['priority'] = 'urgent'
+                    elif hours_left < 6:
+                        reminder['status'] = 'due_today'
+                        reminder['countdown'] = f'Due in {int(hours_left)} hours'
+                        reminder['priority'] = 'high'
+                    else:
+                        reminder['status'] = 'due_today'
+                        reminder['countdown'] = 'Due today!'
+                        reminder['priority'] = 'high'
+                elif days_left == 1:
+                    reminder['status'] = 'due_tomorrow'
+                    reminder['countdown'] = 'Due tomorrow'
+                    reminder['priority'] = 'medium'
+                elif days_left <= 3:
+                    reminder['status'] = 'due_soon'
+                    reminder['countdown'] = f'{days_left} days left'
+                    reminder['priority'] = 'medium'
+                elif days_left <= 7:
+                    reminder['status'] = 'due_this_week'
+                    reminder['countdown'] = f'{days_left} days left'
+                    reminder['priority'] = 'low'
+                else:
+                    reminder['status'] = 'upcoming'
+                    if days_left <= 30:
+                        reminder['countdown'] = f'{days_left} days left'
+                    else:
+                        weeks_left = days_left // 7
+                        if weeks_left == 1:
+                            reminder['countdown'] = '1 week left'
+                        elif weeks_left < 4:
+                            reminder['countdown'] = f'{weeks_left} weeks left'
+                        else:
+                            months_left = days_left // 30
+                            if months_left == 1:
+                                reminder['countdown'] = '1 month left'
+                            else:
+                                reminder['countdown'] = f'{months_left} months left'
+                    reminder['priority'] = 'low'
+
+                # Add formatted due date
+                reminder['formatted_due_date'] = due_date.strftime('%B %d, %Y at %I:%M %p')
+                reminder['due_date_short'] = due_date.strftime('%m/%d/%Y')
+
+            else:
+                reminder['status'] = 'no_date'
+                reminder['countdown'] = 'No due date'
+                reminder['priority'] = 'low'
+                reminder['formatted_due_date'] = None
+                reminder['due_date_short'] = None
+        
+        # Sort by due date
+        reminders_list.sort(key=lambda x: x.get('due_date', '9999-12-31'))
+        
+        return jsonify({'reminders': reminders_list})
+            
+    except Exception as e:
+        print(f"Error retrieving reminders: {e}")
+        return jsonify({'error': 'Error retrieving reminders'}), 500
+
+@app.route('/api/reminders', methods=['POST'])
+@login_required
+def save_reminder():
+    """Save a new reminder"""
+    try:
+        username = session.get('username')
+        if not username:
+            return jsonify({'error': 'Please log in to save reminders'}), 401
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        # Get existing reminders
+        reminders_data = get_user_data(username, 'reminders')
+        if 'reminders' in reminders_data:
+            reminders_list = reminders_data['reminders']
+        else:
+            reminders_list = []
+
+        # Create new reminder
+        new_reminder = {
+            'id': str(uuid.uuid4()),
+            'title': data.get('title', ''),
+            'description': data.get('description', ''),
+            'type': data.get('type', 'assignment'),
+            'due_date': data.get('due_date'),
+            'created_at': datetime.now().isoformat(),
+            'completed': False
+        }
+
+        # Check for duplicates
+        if is_duplicate_reminder(new_reminder, reminders_list):
+            return jsonify({
+                'error': 'Duplicate reminder detected',
+                'message': f'A reminder with the same title "{new_reminder["title"]}", type "{new_reminder["type"]}", and due date already exists.'
+            }), 400
+
+        reminders_list.append(new_reminder)
+        
+        # Save back to Firebase
+        if save_user_data(username, 'reminders', {'reminders': reminders_list}):
+            return jsonify({'success': True, 'reminder': new_reminder})
+        else:
+            return jsonify({'error': 'Error saving reminder'}), 500
+        
+    except Exception as e:
+        print(f"Error saving reminder: {e}")
+        return jsonify({'error': 'Error saving reminder'}), 500
+
+@app.route('/api/reminders/parse', methods=['POST'])
+def parse_message():
+    """Parse message text to extract reminder information"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+
+        message_text = data.get('message', '')
+        if not message_text:
+            return jsonify({'error': 'No message text provided'}), 400
+
+        # Simplified parsing for debugging
+        try:
+            reminder_type = classify_reminder_type(message_text)
+        except Exception as e:
+            return jsonify({'error': f'Error in classify_reminder_type: {str(e)}'}), 500
+
+        try:
+            due_date = parse_date_from_text(message_text)
+        except Exception as e:
+            return jsonify({'error': f'Error in parse_date_from_text: {str(e)}'}), 500
+
+        try:
+            title = extract_title_from_message(message_text, reminder_type)
+        except Exception as e:
+            return jsonify({'error': f'Error in extract_title_from_message: {str(e)}'}), 500
+
+        try:
+            subject = extract_subject_from_message(message_text)
+        except Exception as e:
+            return jsonify({'error': f'Error in extract_subject_from_message: {str(e)}'}), 500
+
+        # Create enhanced description
+        description = message_text
+        if subject:
+            description = f"Subject: {subject}\n\n{message_text}"
+
+        result = {
+            'title': title,
+            'description': description,
+            'type': reminder_type,
+            'subject': subject,
+            'due_date': due_date.isoformat() if due_date else None,
+            'parsed_date': due_date.strftime('%Y-%m-%d') if due_date else None,
+            'confidence': {
+                'type_confidence': 'high' if any(keyword in message_text.lower() for keyword in [reminder_type, 'exam', 'assignment', 'project']) else 'medium',
+                'date_confidence': 'high' if due_date else 'low'
+            }
+        }
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        print(f"Error parsing message: {e}")
+        return jsonify({'error': 'Error parsing message'}), 500
+
+@app.route('/api/reminders/<reminder_id>', methods=['PUT'])
+@login_required
+def update_reminder(reminder_id):
+    """Update a reminder"""
+    try:
+        username = session.get('username')
+        if not username:
+            return jsonify({'error': 'Please log in to update reminders'}), 401
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        # Get existing reminders
+        reminders_data = get_user_data(username, 'reminders')
+        if 'reminders' in reminders_data:
+            reminders_list = reminders_data['reminders']
+        else:
+            reminders_list = []
+        
+        # Find and update reminder
+        for reminder in reminders_list:
+            if reminder['id'] == reminder_id:
+                reminder.update({
+                    'title': data.get('title', reminder['title']),
+                    'description': data.get('description', reminder['description']),
+                    'type': data.get('type', reminder['type']),
+                    'due_date': data.get('due_date', reminder['due_date']),
+                    'completed': data.get('completed', reminder['completed']),
+                    'updated_at': datetime.now().isoformat()
+                })
+                
+                # Save back to Firebase
+                if save_user_data(username, 'reminders', {'reminders': reminders_list}):
+                    return jsonify({'success': True, 'reminder': reminder})
+                else:
+                    return jsonify({'error': 'Error updating reminder'}), 500
+        
+        return jsonify({'error': 'Reminder not found'}), 404
+        
+    except Exception as e:
+        print(f"Error updating reminder: {e}")
+        return jsonify({'error': 'Error updating reminder'}), 500
+
+@app.route('/api/reminders/<reminder_id>', methods=['DELETE'])
+@login_required
+def delete_reminder(reminder_id):
+    """Delete a reminder"""
+    try:
+        username = session.get('username')
+        if not username:
+            return jsonify({'error': 'Please log in to delete reminders'}), 401
+        
+        # Get existing reminders
+        reminders_data = get_user_data(username, 'reminders')
+        if 'reminders' in reminders_data:
+            reminders_list = reminders_data['reminders']
+        else:
+            reminders_list = []
+        
+        # Find and remove reminder
+        reminders_list = [r for r in reminders_list if r['id'] != reminder_id]
+        
+        # Save back to Firebase
+        if save_user_data(username, 'reminders', {'reminders': reminders_list}):
+            return jsonify({'success': True})
+        else:
+            return jsonify({'error': 'Error deleting reminder'}), 500
+        
+    except Exception as e:
+        print(f"Error deleting reminder: {e}")
+        return jsonify({'error': 'Error deleting reminder'}), 500
+
+@app.route('/api/reminders/email-settings', methods=['GET', 'POST'])
+@login_required
+def email_settings():
+    """Get or update email notification settings"""
+    try:
+        username = session.get('username')
+        if not username:
+            return jsonify({'error': 'User not found in session'}), 401
+
+        if request.method == 'GET':
+            # Get current email settings
+            user_data = get_user_data(username, 'email_settings')
+            settings = user_data.get('settings', {
+                'enabled': False,
+                'notify_24h': True,
+                'notify_1h': True,
+                'notify_overdue': True,
+                'email': ''
+            })
+            return jsonify({'settings': settings})
+
+        elif request.method == 'POST':
+            # Update email settings
+            data = request.get_json()
+            if not data:
+                return jsonify({'error': 'No data provided'}), 400
+
+            settings = {
+                'enabled': data.get('enabled', False),
+                'notify_24h': data.get('notify_24h', True),
+                'notify_1h': data.get('notify_1h', True),
+                'notify_overdue': data.get('notify_overdue', True),
+                'email': data.get('email', ''),
+                'updated_at': datetime.now().isoformat()
+            }
+
+            if save_user_data(username, 'email_settings', {'settings': settings}):
+                return jsonify({'success': True, 'settings': settings})
+            else:
+                return jsonify({'error': 'Error saving email settings'}), 500
+
+    except Exception as e:
+        print(f"Error handling email settings: {e}")
+        return jsonify({'error': 'Error handling email settings'}), 500
+
+@app.route('/api/reminders/send-test-email', methods=['POST'])
+@login_required
+def send_test_email():
+    """Send a test email reminder"""
+    try:
+        username = session.get('username')
+        if not username:
+            return jsonify({'error': 'User not found in session'}), 401
+
+        data = request.get_json()
+        if not data or not data.get('email'):
+            return jsonify({'error': 'Email address required'}), 400
+
+        # Create test reminder data
+        test_reminder = {
+            'title': 'Test Reminder',
+            'type': 'assignment',
+            'description': 'This is a test email from the Smart Student Reminder System.',
+            'formatted_due_date': 'Tomorrow at 11:59 PM',
+            'countdown': 'Due in 1 day'
+        }
+
+        # Send test email
+        if send_email_reminder(data['email'], test_reminder):
+            return jsonify({'success': True, 'message': 'Test email sent successfully!'})
+        else:
+            return jsonify({'error': 'Failed to send test email. Check email configuration.'}), 500
+
+    except Exception as e:
+        print(f"Error sending test email: {e}")
+        return jsonify({'error': 'Error sending test email'}), 500
+
 # Timetable API Routes
 @app.route('/api/timetable', methods=['GET'])
 @login_required
@@ -348,23 +1150,6 @@ def save_timetable():
     except Exception as e:
         print(f"Error saving timetable: {e}")
         return jsonify({'error': 'Error saving timetable'}), 500
-
-@app.route('/api/timetable/day/<day>', methods=['GET'])
-@login_required
-def get_day_timetable(day):
-    """Get timetable for a specific day"""
-    try:
-        username = session.get('username')
-        if not username:
-            return jsonify({'error': 'User not found in session'}), 401
-        
-        timetable_data = get_user_data(username, 'timetable')
-        day_schedule = timetable_data.get(day.lower(), [])
-        return jsonify({'day': day, 'schedule': day_schedule})
-            
-    except Exception as e:
-        print(f"Error retrieving day timetable: {e}")
-        return jsonify({'error': 'Error retrieving day timetable'}), 500
 
 # CGPA API Routes
 @app.route('/api/calculate_cgpa', methods=['POST'])
@@ -588,49 +1373,16 @@ def get_history():
         print(f"History error: {e}")
         return jsonify({'error': 'Error fetching history', 'details': str(e)}), 500
 
-# Admin route to view all users
-@app.route('/admin/users')
-@login_required
-def admin_users():
-    """Admin route to view all users"""
-    try:
-        users_ref = db.collection('users').document('students').collection('profiles')
-        docs = users_ref.order_by('username').get()
-        
-        users_list = []
-        for doc in docs:
-            user_data = doc.to_dict()
-            user_data['id'] = doc.id
-            # Remove password for security
-            user_data.pop('password_hash', None)
-            users_list.append(user_data)
-        
-        return jsonify({
-            'total_users': len(users_list),
-            'users': [{
-                'username': user.get('username'),
-                'student_name': user.get('student_name'),
-                'email': user.get('email'),
-                'college': user.get('college'),
-                'course': user.get('course'),
-                'role': user.get('role', 'student'),
-                'created_at': user.get('created_at')
-            } for user in users_list]
-        })
-    except Exception as e:
-        print(f"Error retrieving users: {e}")
-        return jsonify({'error': 'Error retrieving users'}), 500
-
 # Health check route
 @app.route('/health')
 def health_check():
     return jsonify({
         'status': 'ok', 
-        'message': 'Server is running with Firebase storage',
+        'message': 'Server is running with Firebase storage and Smart Reminder System',
         'environment': os.getenv('FLASK_ENV', 'development'),
         'firebase_configured': db is not None
     })
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))  # Use Render's PORT if set
+    port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
