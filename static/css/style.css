@@ -53,6 +53,19 @@ body {
   display: flex;
   align-items: center;
   gap: 16px;
+  flex-wrap: wrap;
+}
+
+/* Ensure exam countdown is visible in header */
+.header-right .exam-countdown {
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  min-width: 120px;
+  text-align: center;
+  display: block !important;
+  opacity: 1 !important;
+  visibility: visible !important;
 }
 
 .next-holiday-card {
@@ -1415,6 +1428,17 @@ body {
   .header-content {
     flex-direction: column;
     text-align: center;
+  }
+
+  .header-right {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .header-right .exam-countdown {
+    font-size: 0.8rem;
+    padding: 6px 10px;
+    min-width: 100px;
   }
 
   .dashboard-title {

@@ -97,6 +97,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Load exam countdown immediately and refresh every minute
   setTimeout(() => {
+    forceShowCountdown() // Force show the element first
     loadExamCountdown()
     setInterval(loadExamCountdown, 60000)
   }, 2000)
@@ -1891,6 +1892,21 @@ function hideExamCountdown() {
   const countdownElement = document.getElementById('examCountdown')
   if (countdownElement) {
     countdownElement.style.display = 'none'
+  }
+}
+
+// Force show countdown for testing
+function forceShowCountdown() {
+  const countdownElement = document.getElementById('examCountdown')
+  if (countdownElement) {
+    countdownElement.style.display = 'block'
+    countdownElement.style.visibility = 'visible'
+    countdownElement.style.opacity = '1'
+    document.getElementById('countdownSubject').textContent = 'NEXT EXAM'
+    document.getElementById('countdownTimer').textContent = 'Loading...'
+    console.log('✅ Countdown element forced to show')
+  } else {
+    console.error('❌ Countdown element not found in DOM')
   }
 }
 
