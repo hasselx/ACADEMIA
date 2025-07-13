@@ -1821,42 +1821,127 @@ function closeEditReminderModal() {
   }
 }
 
-// Exam Countdown Functions - Fresh Implementation
+// Exam Countdown Functions - Works with Local Storage
 function loadExamCountdown() {
-  fetch('/api/next-exam')
-    .then(response => response.json())
-    .then(data => {
-      const countdownElement = document.getElementById('examCountdown')
-      const subjectElement = document.getElementById('countdownSubject')
-      const timerElement = document.getElementById('countdownTimer')
+  try {
+    // Try to get exam data from local storage first
+    const examTimetableData = localStorage.getItem('exam_timetable_backup')
+    let nextExam = null
 
-      if (data.next_exam) {
-        const exam = data.next_exam
-        subjectElement.textContent = exam.subject
+    if (examTimetableData) {
+      const examTimetable = JSON.parse(examTimetableData)
+      nextExam = findNextExamFromLocalData(examTimetable)
+    }
 
-        // Format countdown text
-        let countdownText = ''
-        if (exam.days_left > 0) {
-          countdownText = `${exam.days_left}d ${exam.hours_left}h ${exam.minutes_left}m`
-        } else if (exam.hours_left > 0) {
-          countdownText = `${exam.hours_left}h ${exam.minutes_left}m`
-        } else {
-          countdownText = `${exam.minutes_left}m`
-        }
-        timerElement.textContent = countdownText
+    // If no local data, try API (for local development)
+    if (!nextExam) {
+      fetch('/api/next-exam')
+        .then(response => response.json())
+        .then(data => {
+          if (data.next_exam) {
+            displayExamCountdown(data.next_exam)
+          } else {
+            hideExamCountdown()
+          }
+        })
+        .catch(error => {
+          console.log('API not available (static hosting), using local data only')
+          hideExamCountdown()
+        })
+    } else {
+      displayExamCountdown(nextExam)
+    }
+  } catch (error) {
+    console.error('Error loading exam countdown:', error)
+    hideExamCountdown()
+  }
+}
 
-        // Apply dynamic colors based on time remaining
-        applyExamCountdownColor(countdownElement, exam.days_left, exam.hours_left, exam.minutes_left)
+// Find next exam from local storage data
+function findNextExamFromLocalData(examTimetable) {
+  console.log('🔍 Finding next exam from data:', examTimetable)
 
-        countdownElement.style.display = 'block'
-      } else {
-        countdownElement.style.display = 'none'
+  if (!examTimetable || !examTimetable.exams) {
+    console.log('❌ No exam timetable or exams array found')
+    return null
+  }
+
+  const now = new Date()
+  console.log('⏰ Current time:', now.toISOString())
+
+  let nextExam = null
+  let minTimeDiff = Infinity
+
+  examTimetable.exams.forEach((exam, index) => {
+    console.log(`📝 Checking exam ${index}:`, exam)
+
+    const examDateTime = new Date(exam.date + 'T' + exam.time)
+    console.log(`📅 Exam datetime: ${examDateTime.toISOString()}`)
+
+    const timeDiff = examDateTime.getTime() - now.getTime()
+    console.log(`⏱️ Time difference: ${timeDiff}ms (${Math.floor(timeDiff / 1000 / 60)} minutes)`)
+
+    // Only consider future exams
+    if (timeDiff > 0 && timeDiff < minTimeDiff) {
+      minTimeDiff = timeDiff
+
+      // Calculate time remaining
+      const days = Math.floor(timeDiff / (1000 * 60 * 60 * 24))
+      const hours = Math.floor((timeDiff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
+      const minutes = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60))
+
+      nextExam = {
+        subject: exam.subject,
+        date: exam.date,
+        time: exam.time,
+        days_left: days,
+        hours_left: hours,
+        minutes_left: minutes
       }
-    })
-    .catch(error => {
-      console.error('Error loading exam countdown:', error)
-      document.getElementById('examCountdown').style.display = 'none'
-    })
+
+      console.log(`✅ New closest exam found: ${exam.subject} in ${days}d ${hours}h ${minutes}m`)
+    } else if (timeDiff <= 0) {
+      console.log(`⏰ Exam ${exam.subject} is in the past, skipping`)
+    }
+  })
+
+  console.log('🎯 Final next exam:', nextExam)
+  return nextExam
+}
+
+// Display exam countdown
+function displayExamCountdown(exam) {
+  const countdownElement = document.getElementById('examCountdown')
+  const subjectElement = document.getElementById('countdownSubject')
+  const timerElement = document.getElementById('countdownTimer')
+
+  if (!countdownElement || !subjectElement || !timerElement) return
+
+  subjectElement.textContent = exam.subject
+
+  // Format countdown text
+  let countdownText = ''
+  if (exam.days_left > 0) {
+    countdownText = `${exam.days_left}d ${exam.hours_left}h ${exam.minutes_left}m`
+  } else if (exam.hours_left > 0) {
+    countdownText = `${exam.hours_left}h ${exam.minutes_left}m`
+  } else {
+    countdownText = `${exam.minutes_left}m`
+  }
+  timerElement.textContent = countdownText
+
+  // Apply dynamic colors based on time remaining
+  applyExamCountdownColor(countdownElement, exam.days_left, exam.hours_left, exam.minutes_left)
+
+  countdownElement.style.display = 'block'
+}
+
+// Hide exam countdown
+function hideExamCountdown() {
+  const countdownElement = document.getElementById('examCountdown')
+  if (countdownElement) {
+    countdownElement.style.display = 'none'
+  }
 }
 
 // Fresh color application function
@@ -1961,6 +2046,12 @@ function switchTimetableType(type) {
       addBtn.innerHTML = '<i class="fas fa-plus"></i>'
       addBtn.title = 'Add Class'
     }
+  }
+
+  // Show/hide test buttons based on mode
+  const testButtons = document.getElementById('countdownTestButtons')
+  if (testButtons) {
+    testButtons.style.display = type === 'exam' ? 'block' : 'none'
   }
 
   // Load appropriate timetable
@@ -2305,13 +2396,31 @@ function loadExamTimetable() {
       if (currentTimetableType === 'exam') {
         displayExamSchedule()
       }
+      // Refresh countdown after loading
+      loadExamCountdown()
     })
     .catch((error) => {
       console.error("Error loading exam timetable:", error)
-      currentExamTimetable = { exams: [] }
+      // Try to load from localStorage for static hosting
+      const localData = localStorage.getItem('exam_timetable_backup')
+      if (localData) {
+        try {
+          const parsedData = JSON.parse(localData)
+          currentExamTimetable = parsedData || { exams: [] }
+          console.log("Loaded exam timetable from localStorage:", currentExamTimetable)
+        } catch (e) {
+          console.error("Error parsing localStorage data:", e)
+          currentExamTimetable = { exams: [] }
+        }
+      } else {
+        currentExamTimetable = { exams: [] }
+      }
+
       if (currentTimetableType === 'exam') {
         displayExamSchedule()
       }
+      // Refresh countdown after loading
+      loadExamCountdown()
     })
 }
 
@@ -2417,6 +2526,10 @@ function displayExamSchedule() {
 }
 
 function saveExamTimetable() {
+  // Save to localStorage for static hosting compatibility
+  // currentExamTimetable already has the structure { exams: [] }
+  localStorage.setItem('exam_timetable_backup', JSON.stringify(currentExamTimetable))
+
   console.log("Fetching /api/exam-timetable (POST) to save exam timetable...")
   fetch("/api/exam-timetable", {
     method: "POST",
@@ -2439,13 +2552,17 @@ function saveExamTimetable() {
       if (data.error) {
         showNotification(data.error, "error")
       } else {
+        showNotification("Exam timetable saved successfully!", "success")
         // Refresh countdown after saving
         loadExamCountdown()
       }
     })
     .catch((error) => {
       console.error("Error saving exam timetable:", error)
-      showNotification("Error saving exam timetable", "error")
+      // Still show success since localStorage save worked
+      showNotification("Exam timetable saved locally!", "success")
+      // Refresh countdown after saving
+      loadExamCountdown()
     })
 }
 
@@ -4952,4 +5069,97 @@ function createNewCGPARecord(updatedData) {
   })
 }
 
+// Test Functions for Countdown (Development/Testing)
+function addTestExamTomorrow() {
+  const tomorrow = new Date()
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  tomorrow.setHours(14, 0, 0, 0) // 2 PM tomorrow
 
+  const testExam = {
+    subject: "MATHEMATICS TEST",
+    date: tomorrow.toISOString().split('T')[0],
+    time: "14:00",
+    day: tomorrow.toLocaleDateString('en-US', { weekday: 'long' }),
+    session: "FN",
+    location: "Test Hall"
+  }
+
+  if (!currentExamTimetable.exams) {
+    currentExamTimetable.exams = []
+  }
+
+  currentExamTimetable.exams.push(testExam)
+  saveExamTimetable()
+  displayExamSchedule()
+  showNotification("✅ Added test exam for tomorrow 2 PM", "success")
+}
+
+function addTestExamUrgent() {
+  const urgent = new Date()
+  urgent.setHours(urgent.getHours() + 2) // 2 hours from now
+
+  const testExam = {
+    subject: "PHYSICS URGENT",
+    date: urgent.toISOString().split('T')[0],
+    time: urgent.toTimeString().slice(0, 5),
+    day: urgent.toLocaleDateString('en-US', { weekday: 'long' }),
+    session: "FN",
+    location: "Test Hall"
+  }
+
+  if (!currentExamTimetable.exams) {
+    currentExamTimetable.exams = []
+  }
+
+  currentExamTimetable.exams.push(testExam)
+  saveExamTimetable()
+  displayExamSchedule()
+  showNotification("⚠️ Added urgent exam in 2 hours", "warning")
+}
+
+function addTestExamCritical() {
+  const critical = new Date()
+  critical.setMinutes(critical.getMinutes() + 30) // 30 minutes from now
+
+  const testExam = {
+    subject: "CHEMISTRY CRITICAL",
+    date: critical.toISOString().split('T')[0],
+    time: critical.toTimeString().slice(0, 5),
+    day: critical.toLocaleDateString('en-US', { weekday: 'long' }),
+    session: "FN",
+    location: "Test Hall"
+  }
+
+  if (!currentExamTimetable.exams) {
+    currentExamTimetable.exams = []
+  }
+
+  currentExamTimetable.exams.push(testExam)
+  saveExamTimetable()
+  displayExamSchedule()
+  showNotification("🚨 Added critical exam in 30 minutes", "error")
+}
+
+function clearTestExams() {
+  if (confirm("Are you sure you want to clear all test exams?")) {
+    // Remove only test exams (those with "TEST", "URGENT", or "CRITICAL" in the name)
+    if (currentExamTimetable.exams) {
+      currentExamTimetable.exams = currentExamTimetable.exams.filter(exam =>
+        !exam.subject.includes('TEST') &&
+        !exam.subject.includes('URGENT') &&
+        !exam.subject.includes('CRITICAL')
+      )
+    }
+
+    saveExamTimetable()
+    displayExamSchedule()
+    showNotification("🗑️ Cleared all test exams", "info")
+  }
+}
+
+// Auto-refresh countdown every minute
+setInterval(() => {
+  if (currentTab === 'timetable') {
+    loadExamCountdown()
+  }
+}, 60000)
