@@ -1833,7 +1833,6 @@ function loadExamCountdown() {
 
   fetch('/api/next-exam')
     .then(response => {
-      console.log('📡 Next exam API response status:', response.status)
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }

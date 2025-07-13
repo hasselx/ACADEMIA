@@ -1805,14 +1805,25 @@ def get_next_exam():
 
         for exam in exam_timetable_data['exams']:
             try:
+                print(f"🔍 Processing exam: {exam}")
                 # Parse exam date and time
                 exam_date = datetime.strptime(exam['date'], '%Y-%m-%d')
                 exam_time_str = exam.get('time', '09:00')  # Default to 9 AM if no time
+                print(f"🕐 Original time string: '{exam_time_str}'")
+
+                # Clean time string - remove (FN), (AN) suffixes
+                if '(' in exam_time_str:
+                    exam_time_str = exam_time_str.split('(')[0].strip()
+                    print(f"🕐 Cleaned time string: '{exam_time_str}'")
+
                 exam_time = datetime.strptime(exam_time_str, '%H:%M').time()
+                print(f"🕐 Parsed time: {exam_time}")
 
                 # Combine date and time
                 exam_datetime = datetime.combine(exam_date.date(), exam_time)
                 exam_datetime = ist.localize(exam_datetime)
+                print(f"📅 Exam datetime: {exam_datetime}")
+                print(f"📅 Current time: {now}")
 
                 # Only include future exams
                 if exam_datetime > now:
@@ -1822,9 +1833,13 @@ def get_next_exam():
                     exam['hours_left'] = time_diff.seconds // 3600
                     exam['minutes_left'] = (time_diff.seconds % 3600) // 60
                     upcoming_exams.append(exam)
+                    print(f"✅ Added upcoming exam: {exam['subject']} - {time_diff}")
+                else:
+                    print(f"❌ Exam is in the past: {exam['subject']}")
 
             except (ValueError, KeyError) as e:
-                print(f"Error parsing exam date/time: {e}")
+                print(f"❌ Error parsing exam date/time: {e}")
+                print(f"❌ Exam data: {exam}")
                 continue
 
         # Sort by datetime and get the next exam
