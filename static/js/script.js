@@ -90,6 +90,12 @@ document.addEventListener("DOMContentLoaded", () => {
   }, 5 * 60 * 1000)
 
   console.log("Smart Student Dashboard DOM loaded successfully and initial setup complete.")
+
+  // Test countdown on page load
+  setTimeout(() => {
+    console.log('🧪 Testing countdown functionality...')
+    loadExamCountdown()
+  }, 2000)
 })
 
 // Global variables
@@ -1821,93 +1827,34 @@ function closeEditReminderModal() {
   }
 }
 
-// Exam Countdown Functions - Works with Local Storage
+// Exam Countdown Functions - Firebase Only
 function loadExamCountdown() {
-  try {
-    // Try to get exam data from local storage first
-    const examTimetableData = localStorage.getItem('exam_timetable_backup')
-    let nextExam = null
+  console.log('🔄 Loading exam countdown from Firebase...')
 
-    if (examTimetableData) {
-      const examTimetable = JSON.parse(examTimetableData)
-      nextExam = findNextExamFromLocalData(examTimetable)
-    }
-
-    // If no local data, try API (for local development)
-    if (!nextExam) {
-      fetch('/api/next-exam')
-        .then(response => response.json())
-        .then(data => {
-          if (data.next_exam) {
-            displayExamCountdown(data.next_exam)
-          } else {
-            hideExamCountdown()
-          }
-        })
-        .catch(error => {
-          console.log('API not available (static hosting), using local data only')
-          hideExamCountdown()
-        })
-    } else {
-      displayExamCountdown(nextExam)
-    }
-  } catch (error) {
-    console.error('Error loading exam countdown:', error)
-    hideExamCountdown()
-  }
-}
-
-// Find next exam from local storage data
-function findNextExamFromLocalData(examTimetable) {
-  console.log('🔍 Finding next exam from data:', examTimetable)
-
-  if (!examTimetable || !examTimetable.exams) {
-    console.log('❌ No exam timetable or exams array found')
-    return null
-  }
-
-  const now = new Date()
-  console.log('⏰ Current time:', now.toISOString())
-
-  let nextExam = null
-  let minTimeDiff = Infinity
-
-  examTimetable.exams.forEach((exam, index) => {
-    console.log(`📝 Checking exam ${index}:`, exam)
-
-    const examDateTime = new Date(exam.date + 'T' + exam.time)
-    console.log(`📅 Exam datetime: ${examDateTime.toISOString()}`)
-
-    const timeDiff = examDateTime.getTime() - now.getTime()
-    console.log(`⏱️ Time difference: ${timeDiff}ms (${Math.floor(timeDiff / 1000 / 60)} minutes)`)
-
-    // Only consider future exams
-    if (timeDiff > 0 && timeDiff < minTimeDiff) {
-      minTimeDiff = timeDiff
-
-      // Calculate time remaining
-      const days = Math.floor(timeDiff / (1000 * 60 * 60 * 24))
-      const hours = Math.floor((timeDiff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
-      const minutes = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60))
-
-      nextExam = {
-        subject: exam.subject,
-        date: exam.date,
-        time: exam.time,
-        days_left: days,
-        hours_left: hours,
-        minutes_left: minutes
+  fetch('/api/next-exam')
+    .then(response => {
+      console.log('📡 Next exam API response status:', response.status)
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
       }
-
-      console.log(`✅ New closest exam found: ${exam.subject} in ${days}d ${hours}h ${minutes}m`)
-    } else if (timeDiff <= 0) {
-      console.log(`⏰ Exam ${exam.subject} is in the past, skipping`)
-    }
-  })
-
-  console.log('🎯 Final next exam:', nextExam)
-  return nextExam
+      return response.json()
+    })
+    .then(data => {
+      console.log('📊 Next exam data received:', data)
+      if (data.next_exam) {
+        displayExamCountdown(data.next_exam)
+      } else {
+        console.log('❌ No upcoming exams found')
+        hideExamCountdown()
+      }
+    })
+    .catch(error => {
+      console.error('❌ Error loading exam countdown from Firebase:', error)
+      hideExamCountdown()
+    })
 }
+
+// Firebase-only countdown - no localStorage needed
 
 // Display exam countdown
 function displayExamCountdown(exam) {
@@ -2401,20 +2348,7 @@ function loadExamTimetable() {
     })
     .catch((error) => {
       console.error("Error loading exam timetable:", error)
-      // Try to load from localStorage for static hosting
-      const localData = localStorage.getItem('exam_timetable_backup')
-      if (localData) {
-        try {
-          const parsedData = JSON.parse(localData)
-          currentExamTimetable = parsedData || { exams: [] }
-          console.log("Loaded exam timetable from localStorage:", currentExamTimetable)
-        } catch (e) {
-          console.error("Error parsing localStorage data:", e)
-          currentExamTimetable = { exams: [] }
-        }
-      } else {
-        currentExamTimetable = { exams: [] }
-      }
+      currentExamTimetable = { exams: [] }
 
       if (currentTimetableType === 'exam') {
         displayExamSchedule()
@@ -2526,9 +2460,7 @@ function displayExamSchedule() {
 }
 
 function saveExamTimetable() {
-  // Save to localStorage for static hosting compatibility
-  // currentExamTimetable already has the structure { exams: [] }
-  localStorage.setItem('exam_timetable_backup', JSON.stringify(currentExamTimetable))
+  console.log('💾 Saving exam timetable to Firebase...')
 
   console.log("Fetching /api/exam-timetable (POST) to save exam timetable...")
   fetch("/api/exam-timetable", {

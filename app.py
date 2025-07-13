@@ -1788,8 +1788,10 @@ def get_next_exam():
             return jsonify({'error': 'User not found in session'}), 401
 
         exam_timetable_data = get_user_data(username, 'exam_timetable')
+        print(f"📊 Retrieved exam timetable data: {exam_timetable_data}")
 
         if not exam_timetable_data or 'exams' not in exam_timetable_data:
+            print("❌ No exam timetable data or exams key found")
             return jsonify({'next_exam': None})
 
         from datetime import datetime, timedelta
@@ -1834,8 +1836,11 @@ def get_next_exam():
             return jsonify({'next_exam': None})
 
     except Exception as e:
-        print(f"Error getting next exam: {e}")
-        return jsonify({'error': 'Error getting next exam'}), 500
+        print(f"❌ Error getting next exam: {e}")
+        print(f"❌ Error type: {type(e)}")
+        import traceback
+        print(f"❌ Full traceback: {traceback.format_exc()}")
+        return jsonify({'error': f'Error getting next exam: {str(e)}'}), 500
 
 # CGPA API Routes
 @app.route('/api/calculate_cgpa', methods=['POST'])
