@@ -91,10 +91,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
   console.log("Smart Student Dashboard DOM loaded successfully and initial setup complete.")
 
-  // Test countdown on page load
+  // Initialize clock and countdown
+  updateClock()
+  setInterval(updateClock, 1000)
+
+  // Load exam countdown immediately and refresh every minute
   setTimeout(() => {
-    console.log('🧪 Testing countdown functionality...')
     loadExamCountdown()
+    setInterval(loadExamCountdown, 60000)
   }, 2000)
 })
 
@@ -4998,9 +5002,4 @@ function createNewCGPARecord(updatedData) {
 
 
 
-// Auto-refresh countdown every minute
-setInterval(() => {
-  if (currentTab === 'timetable') {
-    loadExamCountdown()
-  }
-}, 60000)
+// Countdown auto-refresh is now handled in the main initialization

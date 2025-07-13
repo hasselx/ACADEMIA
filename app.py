@@ -1788,58 +1788,48 @@ def get_next_exam():
             return jsonify({'error': 'User not found in session'}), 401
 
         exam_timetable_data = get_user_data(username, 'exam_timetable')
-        print(f"📊 Retrieved exam timetable data: {exam_timetable_data}")
 
         if not exam_timetable_data or 'exams' not in exam_timetable_data:
-            print("❌ No exam timetable data or exams key found")
             return jsonify({'next_exam': None})
 
-        from datetime import datetime, timedelta
+        from datetime import datetime
         import pytz
 
-        # Get current time in IST
+        # Get current time in IST (India Standard Time) for consistency
         ist = pytz.timezone('Asia/Kolkata')
         now = datetime.now(ist)
+        print(f"🕐 Current time (IST): {now}")
 
         upcoming_exams = []
 
         for exam in exam_timetable_data['exams']:
             try:
-                print(f"🔍 Processing exam: {exam}")
                 # Parse exam date and time
                 exam_date = datetime.strptime(exam['date'], '%Y-%m-%d')
                 exam_time_str = exam.get('time', '09:00')  # Default to 9 AM if no time
-                print(f"🕐 Original time string: '{exam_time_str}'")
 
                 # Clean time string - remove (FN), (AN) suffixes
                 if '(' in exam_time_str:
                     exam_time_str = exam_time_str.split('(')[0].strip()
-                    print(f"🕐 Cleaned time string: '{exam_time_str}'")
 
                 exam_time = datetime.strptime(exam_time_str, '%H:%M').time()
-                print(f"🕐 Parsed time: {exam_time}")
 
-                # Combine date and time
+                # Combine date and time and localize to IST
                 exam_datetime = datetime.combine(exam_date.date(), exam_time)
                 exam_datetime = ist.localize(exam_datetime)
-                print(f"📅 Exam datetime: {exam_datetime}")
-                print(f"📅 Current time: {now}")
 
                 # Only include future exams
                 if exam_datetime > now:
                     time_diff = exam_datetime - now
-                    exam['datetime'] = exam_datetime.isoformat()
+                    exam['datetime'] = exam_datetime.strftime('%Y-%m-%d %H:%M:%S')
                     exam['days_left'] = time_diff.days
                     exam['hours_left'] = time_diff.seconds // 3600
                     exam['minutes_left'] = (time_diff.seconds % 3600) // 60
                     upcoming_exams.append(exam)
-                    print(f"✅ Added upcoming exam: {exam['subject']} - {time_diff}")
-                else:
-                    print(f"❌ Exam is in the past: {exam['subject']}")
+                    print(f"✅ Found upcoming exam: {exam['subject']} in {time_diff}")
 
             except (ValueError, KeyError) as e:
-                print(f"❌ Error parsing exam date/time: {e}")
-                print(f"❌ Exam data: {exam}")
+                print(f"❌ Error parsing exam: {e}")
                 continue
 
         # Sort by datetime and get the next exam
@@ -1855,7 +1845,12 @@ def get_next_exam():
         print(f"❌ Error type: {type(e)}")
         import traceback
         print(f"❌ Full traceback: {traceback.format_exc()}")
-        return jsonify({'error': f'Error getting next exam: {str(e)}'}), 500
+
+        # Return a safe response for hosting environments
+        try:
+            return jsonify({'error': f'Error getting next exam: {str(e)}', 'next_exam': None}), 200
+        except:
+            return jsonify({'next_exam': None}), 200
 
 # CGPA API Routes
 @app.route('/api/calculate_cgpa', methods=['POST'])
