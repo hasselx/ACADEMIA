@@ -7,7 +7,32 @@
     <link rel="icon" type="image/png" href="static/icon.png">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
+        :root {
+          /* Modern Color Palette */
+          --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          --success-gradient: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+          --danger-gradient: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+          --warning-gradient: linear-gradient(135deg, #ffc107 0%, #e0a800 100%);
+
+          /* Glass Morphism */
+          --glass-bg: rgba(255, 255, 255, 0.95);
+          --glass-border: rgba(255, 255, 255, 0.2);
+          --glass-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+          --glass-shadow-hover: 0 30px 60px rgba(0, 0, 0, 0.15);
+
+          /* Spacing */
+          --border-radius-sm: 12px;
+          --border-radius-md: 16px;
+          --border-radius-lg: 20px;
+          --border-radius-xl: 24px;
+
+          /* Transitions */
+          --transition-smooth: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+          --transition-bounce: all 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        }
+
         * {
           margin: 0;
           padding: 0;
@@ -17,23 +42,92 @@
 
         body {
           background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          background-attachment: fixed;
           min-height: 100vh;
           color: #333;
+          position: relative;
+          overflow-x: hidden;
+        }
+
+        /* Modern animated background */
+        body::before {
+          content: '';
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background:
+            radial-gradient(circle at 20% 80%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
+            radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+            radial-gradient(circle at 40% 40%, rgba(120, 119, 198, 0.2) 0%, transparent 50%);
+          animation: backgroundFloat 20s ease-in-out infinite;
+          pointer-events: none;
+          z-index: -1;
+        }
+
+        @keyframes backgroundFloat {
+          0%, 100% { transform: translateY(0px) rotate(0deg); }
+          33% { transform: translateY(-20px) rotate(1deg); }
+          66% { transform: translateY(10px) rotate(-1deg); }
         }
 
         .dashboard-container {
           max-width: 1400px;
           margin: 0 auto;
-          padding: 20px;
+          padding: 24px;
+          position: relative;
+        }
+
+        /* Modern Scrollbar */
+        ::-webkit-scrollbar {
+          width: 8px;
+          height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+          background: rgba(255, 255, 255, 0.1);
+          border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          border-radius: 10px;
+          transition: var(--transition-smooth);
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+          background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
+        }
+
+        /* Smooth scroll behavior */
+        html {
+          scroll-behavior: smooth;
         }
 
         /* Header Styles */
         .dashboard-header {
-          background: white;
-          border-radius: 16px;
-          padding: 24px;
-          margin-bottom: 24px;
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+          background: rgba(255, 255, 255, 0.95);
+          backdrop-filter: blur(20px);
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          border-radius: 24px;
+          padding: 32px;
+          margin-bottom: 32px;
+          box-shadow:
+            0 20px 40px rgba(0, 0, 0, 0.1),
+            0 1px 0 rgba(255, 255, 255, 0.5) inset;
+          position: relative;
+          overflow: hidden;
+        }
+
+        .dashboard-header::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 1px;
+          background: linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.5), transparent);
         }
 
         .header-content {
@@ -45,13 +139,21 @@
         }
 
         .dashboard-title {
-          font-size: 2rem;
-          font-weight: 700;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          font-size: 2.5rem;
+          font-weight: 800;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #667eea 100%);
+          background-size: 200% 200%;
           -webkit-background-clip: text;
           background-clip: text;
           color: transparent;
-          margin-bottom: 4px;
+          margin-bottom: 8px;
+          animation: gradientShift 4s ease-in-out infinite;
+          letter-spacing: -0.02em;
+        }
+
+        @keyframes gradientShift {
+          0%, 100% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
         }
 
         .dashboard-subtitle {
@@ -65,43 +167,328 @@
           gap: 16px;
         }
 
-        .timetable-btn {
-          background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-          color: white;
-          padding: 12px 20px;
-          border: none;
-          border-radius: 8px;
-          text-decoration: none;
-          font-weight: 500;
-          transition: all 0.3s;
+        /* Dark Theme Variables */
+        :root {
+          --bg-primary: #ffffff;
+          --bg-secondary: #f8f9fa;
+          --text-primary: #333333;
+          --text-secondary: #666666;
+          --border-color: #e9ecef;
+          --shadow-light: rgba(0, 0, 0, 0.1);
+          --shadow-medium: rgba(0, 0, 0, 0.15);
+          --card-bg: rgba(255, 255, 255, 0.95);
+          --glass-bg: rgba(255, 255, 255, 0.95);
+          --clock-bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          --clock-text: #ffffff;
+          --clock-shadow: rgba(102, 126, 234, 0.3);
+        }
+
+        [data-theme="dark"] {
+          --bg-primary: #1a1a1a;
+          --bg-secondary: #2d2d2d;
+          --text-primary: #ffffff;
+          --text-secondary: #cccccc;
+          --border-color: #404040;
+          --shadow-light: rgba(0, 0, 0, 0.3);
+          --shadow-medium: rgba(0, 0, 0, 0.5);
+          --card-bg: rgba(45, 45, 45, 0.95);
+          --glass-bg: rgba(45, 45, 45, 0.95);
+          --clock-bg: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
+          --clock-text: #ffffff;
+          --clock-shadow: rgba(74, 85, 104, 0.5);
+        }
+
+        /* Apply theme variables */
+        body {
+          background: var(--bg-primary);
+          color: var(--text-primary);
+          transition: all 0.3s ease;
+        }
+
+        .dashboard-header {
+          background: var(--glass-bg);
+          border: 1px solid var(--border-color);
+        }
+
+        .dashboard-title {
+          color: var(--text-primary);
+        }
+
+        .dashboard-subtitle {
+          color: var(--text-secondary);
+        }
+
+        /* Update other elements for theme support */
+        .calculator-card, .input-card, .reminder-item {
+          background: var(--card-bg);
+          border: 1px solid var(--border-color);
+          color: var(--text-primary);
+        }
+
+        .card-header {
+          background: var(--clock-bg);
+          color: var(--clock-text);
+        }
+
+        .card-content {
+          background: var(--card-bg);
+          color: var(--text-primary);
+        }
+
+        .btn {
+          background: var(--card-bg);
+          border: 1px solid var(--border-color);
+          color: var(--text-primary);
+        }
+
+        .btn:hover {
+          background: var(--bg-secondary);
+        }
+
+        .tab-btn {
+          background: var(--card-bg);
+          border: 1px solid var(--border-color);
+          color: var(--text-primary);
+        }
+
+        .tab-btn.active {
+          background: var(--clock-bg);
+          color: var(--clock-text);
+        }
+
+        .history-card {
+          background: var(--card-bg);
+          border: 1px solid var(--border-color);
+          color: var(--text-primary);
+        }
+
+        input, select, textarea {
+          background: var(--card-bg);
+          border: 1px solid var(--border-color);
+          color: var(--text-primary);
+        }
+
+        input:focus, select:focus, textarea:focus {
+          border-color: #667eea;
+          box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        /* Modern Flip Clock Styles */
+        .modern-clock-container {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 8px;
+          margin-right: 16px;
+        }
+
+        .modern-flip-clock {
+          background: var(--card-bg);
+          border-radius: 16px;
+          padding: 16px 20px;
+          box-shadow:
+            0 8px 32px var(--shadow-medium),
+            0 1px 0 rgba(255, 255, 255, 0.1) inset;
+          border: 1px solid var(--border-color);
+          backdrop-filter: blur(20px);
+        }
+
+        .time-display {
           display: flex;
           align-items: center;
           gap: 8px;
+          margin-bottom: 8px;
+        }
+
+        .flip-digit-group {
+          display: flex;
+          gap: 4px;
+        }
+
+        .flip-digit {
+          position: relative;
+          width: 32px;
+          height: 44px;
+          perspective: 1000px;
+        }
+
+        .flip-digit-inner {
+          position: relative;
+          width: 100%;
+          height: 100%;
+          text-align: center;
+          transition: transform 0.6s ease-in-out;
+          transform-style: preserve-3d;
+        }
+
+        .flip-digit.flipping .flip-digit-inner {
+          transform: rotateX(180deg);
+        }
+
+        .flip-digit-front, .flip-digit-back {
+          position: absolute;
+          width: 100%;
+          height: 100%;
+          backface-visibility: hidden;
+          background: var(--clock-bg);
+          color: var(--clock-text);
+          border-radius: 8px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 1.4rem;
+          font-weight: 700;
+          font-family: 'Courier New', monospace;
+          box-shadow:
+            0 4px 12px var(--clock-shadow),
+            0 1px 0 rgba(255, 255, 255, 0.2) inset;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .flip-digit-back {
+          transform: rotateX(180deg);
+        }
+
+        .time-separator {
+          font-size: 1.6rem;
+          font-weight: 700;
+          color: var(--text-primary);
+          margin: 0 6px;
+          animation: pulse 2s infinite;
+          font-family: 'Courier New', monospace;
+        }
+
+        @keyframes pulse {
+          0%, 50% { opacity: 1; }
+          51%, 100% { opacity: 0.4; }
+        }
+
+        .am-pm-indicator {
+          background: var(--clock-bg);
+          color: var(--clock-text);
+          padding: 8px 12px;
+          border-radius: 8px;
+          font-size: 0.9rem;
+          font-weight: 600;
+          margin-left: 8px;
+          box-shadow: 0 2px 8px var(--clock-shadow);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .clock-details {
+          text-align: center;
+          font-size: 0.75rem;
+          color: var(--text-secondary);
+        }
+
+        .timezone-info {
+          font-weight: 600;
+          color: var(--text-primary);
+          margin-bottom: 2px;
+        }
+
+        .date-info {
+          font-size: 0.7rem;
+        }
+
+        /* Theme Toggle Button */
+        .theme-toggle-btn {
+          background: var(--card-bg);
+          border: 1px solid var(--border-color);
+          color: var(--text-primary);
+          padding: 12px;
+          border-radius: 12px;
           cursor: pointer;
+          transition: all 0.3s ease;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 4px 12px var(--shadow-light);
+          backdrop-filter: blur(20px);
+        }
+
+        .theme-toggle-btn:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 6px 20px var(--shadow-medium);
+        }
+
+        .timetable-btn {
+          background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+          color: white;
+          padding: 14px 24px;
+          border: none;
+          border-radius: 16px;
+          text-decoration: none;
+          font-weight: 600;
+          font-size: 0.95rem;
+          transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          cursor: pointer;
+          position: relative;
+          overflow: hidden;
+          box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+        }
+
+        .timetable-btn::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: -100%;
+          width: 100%;
+          height: 100%;
+          background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+          transition: left 0.6s;
+        }
+
+        .timetable-btn:hover::before {
+          left: 100%;
         }
 
         .timetable-btn:hover {
           background: linear-gradient(135deg, #218838 0%, #1ea085 100%);
-          transform: translateY(-2px);
+          transform: translateY(-3px);
+          box-shadow: 0 8px 25px rgba(40, 167, 69, 0.4);
         }
 
         .logout-btn {
-          background: #dc3545;
+          background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
           color: white;
-          padding: 12px 20px;
+          padding: 14px 24px;
           border: none;
-          border-radius: 8px;
+          border-radius: 16px;
           text-decoration: none;
-          font-weight: 500;
-          transition: all 0.3s;
+          font-weight: 600;
+          font-size: 0.95rem;
+          transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
           display: flex;
           align-items: center;
-          gap: 8px;
+          gap: 10px;
+          position: relative;
+          overflow: hidden;
+          box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
+        }
+
+        .logout-btn::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: -100%;
+          width: 100%;
+          height: 100%;
+          background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+          transition: left 0.6s;
+        }
+
+        .logout-btn:hover::before {
+          left: 100%;
         }
 
         .logout-btn:hover {
-          background: #c82333;
-          transform: translateY(-2px);
+          background: linear-gradient(135deg, #c82333 0%, #a71e2a 100%);
+          transform: translateY(-3px);
+          box-shadow: 0 8px 25px rgba(220, 53, 69, 0.4);
         }
 
         /* Smart Reminders Styles */
@@ -134,10 +521,22 @@
         }
 
         .input-card {
-          background: white;
-          border-radius: 16px;
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+          background: rgba(255, 255, 255, 0.95);
+          backdrop-filter: blur(20px);
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          border-radius: 24px;
+          box-shadow:
+            0 20px 40px rgba(0, 0, 0, 0.1),
+            0 1px 0 rgba(255, 255, 255, 0.5) inset;
           overflow: hidden;
+          transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .input-card:hover {
+          transform: translateY(-5px);
+          box-shadow:
+            0 30px 60px rgba(0, 0, 0, 0.15),
+            0 1px 0 rgba(255, 255, 255, 0.5) inset;
         }
 
         .card-header {
@@ -189,12 +588,15 @@
         .input-group input,
         .input-group select,
         .input-group textarea {
-          padding: 12px 16px;
+          padding: 16px 20px;
           border: 2px solid #e9ecef;
-          border-radius: 8px;
+          border-radius: var(--border-radius-md);
           font-size: 1rem;
-          transition: all 0.3s;
+          transition: var(--transition-smooth);
           font-family: inherit;
+          background: rgba(255, 255, 255, 0.8);
+          backdrop-filter: blur(10px);
+          position: relative;
         }
 
         .input-group input:focus,
@@ -202,12 +604,95 @@
         .input-group textarea:focus {
           outline: none;
           border-color: #667eea;
-          box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+          box-shadow:
+            0 0 0 4px rgba(102, 126, 234, 0.1),
+            0 8px 25px rgba(102, 126, 234, 0.15);
+          transform: translateY(-2px);
+          background: rgba(255, 255, 255, 0.95);
+        }
+
+        .input-group input:hover,
+        .input-group select:hover,
+        .input-group textarea:hover {
+          border-color: #b8c5f2;
+          transform: translateY(-1px);
         }
 
         .input-group textarea {
           resize: vertical;
           min-height: 100px;
+        }
+
+        /* Time input specific styling */
+        .input-group input[type="time"] {
+          max-width: 200px;
+        }
+
+        /* Help text styling */
+        .input-help {
+          font-size: 0.85rem;
+          color: #666;
+          margin-top: 4px;
+          font-style: italic;
+        }
+
+        /* 12-hour time input styling */
+        .time-input-container {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          flex-wrap: nowrap;
+        }
+
+        .time-select {
+          padding: 6px 8px;
+          border: 2px solid #e1e5e9;
+          border-radius: 6px;
+          background: white;
+          font-size: 13px;
+          color: #333;
+          min-width: 50px;
+          transition: all 0.3s ease;
+        }
+
+        .time-select:focus {
+          outline: none;
+          border-color: #6c5ce7;
+          box-shadow: 0 0 0 2px rgba(108, 92, 231, 0.1);
+        }
+
+        .time-separator {
+          font-weight: bold;
+          color: #666;
+          font-size: 14px;
+          margin: 0 2px;
+        }
+
+        /* Time and description layout */
+        .time-description-row {
+          display: flex;
+          gap: 16px;
+          align-items: flex-start;
+        }
+
+        .time-description-row .input-group {
+          flex: 0 0 auto;
+          min-width: 200px;
+        }
+
+        .time-description-row .input-group.description-group {
+          flex: 1;
+        }
+
+        @media (max-width: 768px) {
+          .time-description-row {
+            flex-direction: column;
+            gap: 12px;
+          }
+
+          .time-description-row .input-group {
+            min-width: auto;
+          }
         }
 
         .button-group {
@@ -217,37 +702,88 @@
         }
 
         .btn {
-          padding: 12px 20px;
+          padding: 14px 24px;
           border: none;
-          border-radius: 8px;
-          font-weight: 500;
+          border-radius: var(--border-radius-md);
+          font-weight: 600;
           cursor: pointer;
-          transition: all 0.3s;
+          transition: var(--transition-smooth);
           display: flex;
           align-items: center;
-          gap: 8px;
+          gap: 10px;
           text-decoration: none;
           font-size: 0.95rem;
+          position: relative;
+          overflow: hidden;
+          outline: none;
+        }
+
+        .btn:focus-visible {
+          box-shadow:
+            0 0 0 3px rgba(102, 126, 234, 0.3),
+            0 8px 25px rgba(0, 0, 0, 0.15);
+          transform: translateY(-2px);
+        }
+
+        .btn:active {
+          transform: translateY(0px);
+          transition: transform 0.1s;
         }
 
         .btn-primary {
           background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
           color: white;
+          position: relative;
+          overflow: hidden;
+          box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-primary::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: -100%;
+          width: 100%;
+          height: 100%;
+          background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+          transition: left 0.6s;
+        }
+
+        .btn-primary:hover::before {
+          left: 100%;
         }
 
         .btn-primary:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+          transform: translateY(-3px);
+          box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
         }
 
         .btn-success {
           background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
           color: white;
+          position: relative;
+          overflow: hidden;
+          box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+        }
+
+        .btn-success::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: -100%;
+          width: 100%;
+          height: 100%;
+          background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+          transition: left 0.6s;
+        }
+
+        .btn-success:hover::before {
+          left: 100%;
         }
 
         .btn-success:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+          transform: translateY(-3px);
+          box-shadow: 0 8px 25px rgba(40, 167, 69, 0.4);
         }
 
         .btn-secondary {
@@ -321,17 +857,31 @@
         }
 
         .reminder-item {
-          background: white;
-          border-radius: 16px;
-          padding: 20px;
-          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-          transition: all 0.3s;
-          border-left: 4px solid;
+          background: rgba(255, 255, 255, 0.95);
+          backdrop-filter: blur(20px);
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          border-radius: 20px;
+          padding: 24px;
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+          transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+          border-left: 5px solid;
+          position: relative;
+          overflow: hidden;
+        }
+
+        .reminder-item::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 1px;
+          background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.5), transparent);
         }
 
         .reminder-item:hover {
-          transform: translateY(-4px);
-          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+          transform: translateY(-8px);
+          box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
         }
 
         .reminder-item.exam {
@@ -367,6 +917,17 @@
           border-left-color: #1e7e34;
         }
 
+        .reminder-item.lab {
+          border-left-color: #6f42c1;
+          background: linear-gradient(135deg, #f8f5ff 0%, #ffffff 100%);
+          box-shadow: 0 4px 16px rgba(111, 66, 193, 0.1);
+        }
+
+        .reminder-item.lab:hover {
+          box-shadow: 0 8px 24px rgba(111, 66, 193, 0.2);
+          border-left-color: #5a2d91;
+        }
+
         .reminder-header {
           display: flex;
           justify-content: space-between;
@@ -394,32 +955,98 @@
           background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%);
         }
 
-        /* Enhanced visual indicators for reminder types */
-        .reminder-item.exam::before {
-          content: "📚";
-          position: absolute;
-          top: 16px;
-          right: 16px;
-          font-size: 1.5rem;
-          opacity: 0.3;
+        .reminder-type-badge.lab {
+          background: linear-gradient(135deg, #6f42c1 0%, #8e44ad 100%);
         }
 
-        .reminder-item.assignment::before {
-          content: "📝";
-          position: absolute;
-          top: 16px;
-          right: 16px;
-          font-size: 1.5rem;
-          opacity: 0.3;
+        /* Enhanced visual indicators for reminder types - removed duplicate icons */
+
+        /* Filter Options Styling */
+        .reminder-filters {
+          background: white;
+          border-radius: 16px;
+          padding: 20px;
+          margin-bottom: 20px;
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+          display: flex;
+          gap: 20px;
+          align-items: center;
+          flex-wrap: wrap;
         }
 
-        .reminder-item.project::before {
-          content: "🎯";
-          position: absolute;
-          top: 16px;
-          right: 16px;
-          font-size: 1.5rem;
-          opacity: 0.3;
+        .filter-group {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          min-width: 150px;
+        }
+
+        .filter-group label {
+          font-weight: 600;
+          color: #333;
+          font-size: 0.9rem;
+        }
+
+        .filter-group select {
+          padding: 10px 12px;
+          border: 2px solid #e9ecef;
+          border-radius: 8px;
+          background: white;
+          font-size: 0.9rem;
+          cursor: pointer;
+          transition: all 0.3s;
+        }
+
+        .filter-group select:focus {
+          outline: none;
+          border-color: #667eea;
+          box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .filter-group select:hover {
+          border-color: #667eea;
+        }
+
+        .clear-filters-btn {
+          padding: 10px 16px;
+          background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
+          color: white;
+          border: none;
+          border-radius: 8px;
+          cursor: pointer;
+          font-size: 0.9rem;
+          font-weight: 600;
+          transition: all 0.3s;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-top: 24px;
+        }
+
+        .clear-filters-btn:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
+        }
+
+        .clear-filters-btn:active {
+          transform: translateY(0);
+        }
+
+        /* Filter responsive design */
+        @media (max-width: 768px) {
+          .reminder-filters {
+            flex-direction: column;
+            align-items: stretch;
+          }
+
+          .filter-group {
+            min-width: auto;
+          }
+
+          .clear-filters-btn {
+            margin-top: 16px;
+            align-self: center;
+          }
         }
 
         /* Priority indicators based on countdown */
@@ -429,10 +1056,17 @@
           animation: pulse 2s infinite;
         }
 
-        .reminder-countdown.due_today {
-          background: linear-gradient(135deg, #fd7e14 0%, #e55a00 100%);
+        .reminder-countdown.overdue_today {
+          background: linear-gradient(135deg, #dc3545 0%, #fd7e14 100%);
           color: white;
-          animation: pulse 2s infinite;
+          animation: pulse 1.5s infinite;
+          font-weight: 600;
+          border: 2px solid rgba(220, 53, 69, 0.3);
+        }
+
+        .reminder-countdown.due_today {
+          background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+          color: white;
         }
 
         .reminder-countdown.due_tomorrow {
@@ -855,63 +1489,142 @@
 
         .loading-state {
           text-align: center;
-          padding: 40px 20px;
+          padding: 60px 20px;
           color: #666;
           grid-column: 1 / -1;
         }
 
         .loading-state i {
-          font-size: 2rem;
-          margin-bottom: 12px;
+          font-size: 3rem;
+          margin-bottom: 20px;
           color: #667eea;
+          animation: modernSpin 2s linear infinite;
+        }
+
+        @keyframes modernSpin {
+          0% { transform: rotate(0deg) scale(1); }
+          50% { transform: rotate(180deg) scale(1.1); }
+          100% { transform: rotate(360deg) scale(1); }
+        }
+
+        /* Modern Pulse Animation */
+        .pulse {
+          animation: modernPulse 2s ease-in-out infinite;
+        }
+
+        @keyframes modernPulse {
+          0%, 100% {
+            transform: scale(1);
+            opacity: 1;
+          }
+          50% {
+            transform: scale(1.05);
+            opacity: 0.8;
+          }
         }
 
         /* Tab Navigation */
         .tab-navigation {
           display: flex;
-          background: white;
-          border-radius: 12px;
-          padding: 8px;
-          margin-bottom: 24px;
-          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+          background: rgba(255, 255, 255, 0.95);
+          backdrop-filter: blur(20px);
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          border-radius: 20px;
+          padding: 12px;
+          margin-bottom: 32px;
+          box-shadow:
+            0 20px 40px rgba(0, 0, 0, 0.1),
+            0 1px 0 rgba(255, 255, 255, 0.5) inset;
           overflow-x: auto;
+          position: relative;
+        }
+
+        .tab-navigation::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 1px;
+          background: linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.3), transparent);
         }
 
         .tab-btn {
           flex: 1;
           background: none;
           border: none;
-          padding: 16px 20px;
-          border-radius: 8px;
-          font-weight: 500;
+          padding: 18px 24px;
+          border-radius: 16px;
+          font-weight: 600;
+          font-size: 0.95rem;
           color: #666;
           cursor: pointer;
-          transition: all 0.3s;
+          transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
           display: flex;
           align-items: center;
           justify-content: center;
-          gap: 8px;
+          gap: 10px;
           white-space: nowrap;
-          min-width: 150px;
+          min-width: 160px;
+          position: relative;
+          overflow: hidden;
+        }
+
+        .tab-btn::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+          opacity: 0;
+          transition: opacity 0.3s;
+        }
+
+        .tab-btn:hover::before {
+          opacity: 1;
         }
 
         .tab-btn:hover {
-          background: #f8f9fa;
           color: #333;
+          transform: translateY(-2px);
         }
 
         .tab-btn.active {
           background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
           color: white;
+          box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+          transform: translateY(-2px);
+        }
+
+        .tab-btn.active::before {
+          opacity: 0;
         }
 
         /* Tab Content */
         .tab-content {
-          background: white;
-          border-radius: 16px;
-          padding: 24px;
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+          background: rgba(255, 255, 255, 0.95);
+          backdrop-filter: blur(20px);
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          border-radius: 24px;
+          padding: 32px;
+          box-shadow:
+            0 20px 40px rgba(0, 0, 0, 0.1),
+            0 1px 0 rgba(255, 255, 255, 0.5) inset;
           min-height: 600px;
+          position: relative;
+          overflow: hidden;
+        }
+
+        .tab-content::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 1px;
+          background: linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.3), transparent);
         }
 
         .tab-pane {
@@ -1368,10 +2081,28 @@
         }
 
         .calculator-card {
-          background: #f8f9fa;
-          border-radius: 12px;
+          background: var(--glass-bg);
+          backdrop-filter: blur(20px);
+          border: 1px solid var(--glass-border);
+          border-radius: var(--border-radius-xl);
           overflow: hidden;
-          border: 1px solid #e9ecef;
+          transition: var(--transition-smooth);
+          position: relative;
+        }
+
+        .calculator-card::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 1px;
+          background: linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.3), transparent);
+        }
+
+        .calculator-card:hover {
+          transform: translateY(-5px);
+          box-shadow: var(--glass-shadow-hover);
         }
 
         .card-header {
@@ -1570,6 +2301,27 @@
           margin-bottom: 20px;
         }
 
+        .cgpa-scale-selector {
+          background: #f8f9fa;
+          padding: 20px;
+          border-radius: 12px;
+          margin-bottom: 24px;
+          border: 2px solid #e9ecef;
+        }
+
+        .scale-info {
+          margin-top: 8px;
+          padding: 8px 12px;
+          background: #e3f2fd;
+          border-radius: 6px;
+          border-left: 4px solid #2196f3;
+        }
+
+        .scale-info small {
+          color: #1976d2;
+          font-weight: 500;
+        }
+
         .gpa-scale-card {
           background: white;
           padding: 16px;
@@ -1640,6 +2392,21 @@
         /* Holidays Styles */
         .holidays-header {
           margin-bottom: 24px;
+        }
+
+        .holiday-controls {
+          display: flex;
+          align-items: end;
+          gap: 15px;
+          margin-top: 15px;
+        }
+
+        .holiday-controls .input-group {
+          margin-bottom: 0;
+        }
+
+        .holiday-controls select {
+          min-width: 120px;
         }
 
         .holidays-grid {
@@ -1803,6 +2570,26 @@
           margin-bottom: 12px;
         }
 
+        .delete-history-btn {
+          background: rgba(220, 53, 69, 0.1);
+          border: 1px solid rgba(220, 53, 69, 0.3);
+          color: #dc3545;
+          padding: 6px 8px;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 0.8rem;
+          transition: all 0.3s;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .delete-history-btn:hover {
+          background: #dc3545;
+          color: white;
+          transform: scale(1.05);
+        }
+
         .history-date {
           font-size: 0.8rem;
           color: #666;
@@ -1883,6 +2670,333 @@
           }
         }
 
+        /* Modern Utility Classes */
+        .glass-card {
+          background: var(--glass-bg);
+          backdrop-filter: blur(20px);
+          border: 1px solid var(--glass-border);
+          border-radius: var(--border-radius-xl);
+          box-shadow: var(--glass-shadow);
+          transition: var(--transition-smooth);
+        }
+
+        .glass-card:hover {
+          box-shadow: var(--glass-shadow-hover);
+          transform: translateY(-5px);
+        }
+
+        .modern-gradient-text {
+          background: var(--primary-gradient);
+          background-size: 200% 200%;
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
+          animation: gradientShift 4s ease-in-out infinite;
+        }
+
+        .floating-element {
+          animation: modernFloat 6s ease-in-out infinite;
+        }
+
+        /* Event Calendar Styles */
+        .calendar-date {
+          position: relative;
+          min-height: 70px;
+          padding: 10px;
+          border: 1px solid #e9ecef;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          background: white;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+        }
+
+        .calendar-date:hover {
+          background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+          border-color: #6c5ce7;
+        }
+
+        .calendar-date.today {
+          background: white;
+          color: #2d3436;
+          font-weight: bold;
+          border: 3px solid #0984e3;
+          box-shadow: 0 0 0 2px rgba(9, 132, 227, 0.2), 0 4px 12px rgba(9, 132, 227, 0.15);
+        }
+
+        .calendar-date.today:hover {
+          background: #f8f9fa;
+          transform: translateY(-2px);
+          box-shadow: 0 0 0 2px rgba(9, 132, 227, 0.3), 0 6px 16px rgba(9, 132, 227, 0.2);
+        }
+
+        .calendar-date.has-events {
+          border: 2px solid #00b894;
+          background: linear-gradient(135deg, #f1f9f7 0%, #e8f5f0 100%);
+        }
+
+        .calendar-date.has-events:hover {
+          background: linear-gradient(135deg, #e8f5f0 0%, #d1f2eb 100%);
+          border-color: #00a085;
+        }
+
+        .calendar-date.today.has-events {
+          background: linear-gradient(135deg, #f1f9f7 0%, #e8f5f0 100%);
+          border: 3px solid #0984e3;
+          box-shadow: 0 0 0 2px rgba(9, 132, 227, 0.2), 0 0 0 4px rgba(0, 184, 148, 0.2), 0 4px 12px rgba(9, 132, 227, 0.15);
+        }
+
+        .calendar-date.other-month {
+          opacity: 0.3;
+          background: #f8f9fa;
+        }
+
+        .calendar-date.other-month:hover {
+          opacity: 0.6;
+        }
+
+        .date-number {
+          font-weight: 600;
+          font-size: 18px;
+          line-height: 1;
+          color: #2d3436;
+          text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
+        }
+
+        .calendar-date.today .date-number {
+          color: #0984e3;
+          font-weight: 700;
+          font-size: 20px;
+        }
+
+        .event-indicator {
+          position: absolute;
+          bottom: 4px;
+          right: 4px;
+          background: linear-gradient(135deg, #00b894 0%, #00a085 100%);
+          color: white;
+          border-radius: 12px;
+          min-width: 20px;
+          height: 20px;
+          font-size: 11px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: bold;
+          padding: 0 6px;
+          box-shadow: 0 2px 6px rgba(0, 184, 148, 0.3);
+        }
+
+        /* Event Indicator Color Variations */
+        .event-indicator-blue {
+          background: linear-gradient(135deg, #2196f3 0%, #1976d2 100%);
+          box-shadow: 0 2px 6px rgba(33, 150, 243, 0.3);
+        }
+
+        .event-indicator-green {
+          background: linear-gradient(135deg, #4caf50 0%, #388e3c 100%);
+          box-shadow: 0 2px 6px rgba(76, 175, 80, 0.3);
+        }
+
+        .event-indicator-red {
+          background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
+          box-shadow: 0 2px 6px rgba(244, 67, 54, 0.3);
+        }
+
+        .event-indicator-purple {
+          background: linear-gradient(135deg, #9c27b0 0%, #7b1fa2 100%);
+          box-shadow: 0 2px 6px rgba(156, 39, 176, 0.3);
+        }
+
+        .event-indicator-orange {
+          background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+          box-shadow: 0 2px 6px rgba(255, 152, 0, 0.3);
+        }
+
+        .event-indicator-pink {
+          background: linear-gradient(135deg, #e91e63 0%, #c2185b 100%);
+          box-shadow: 0 2px 6px rgba(233, 30, 99, 0.3);
+        }
+
+        .calendar-date.today .event-indicator {
+          border: 2px solid white;
+        }
+
+        /* Event Details Panel */
+        .event-item {
+          background: #f8f9fa;
+          border-radius: 8px;
+          padding: 12px;
+          margin-bottom: 8px;
+          border-left: 4px solid #2196f3;
+        }
+
+        /* Event Color Variations */
+        .event-item.event-color-blue {
+          border-left-color: #2196f3;
+          background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
+        }
+
+        .event-item.event-color-green {
+          border-left-color: #4caf50;
+          background: linear-gradient(135deg, #e8f5e8 0%, #f1f8e9 100%);
+        }
+
+        .event-item.event-color-red {
+          border-left-color: #f44336;
+          background: linear-gradient(135deg, #ffebee 0%, #fce4ec 100%);
+        }
+
+        .event-item.event-color-purple {
+          border-left-color: #9c27b0;
+          background: linear-gradient(135deg, #f3e5f5 0%, #fce4ec 100%);
+        }
+
+        .event-item.event-color-orange {
+          border-left-color: #ff9800;
+          background: linear-gradient(135deg, #fff3e0 0%, #fce4ec 100%);
+        }
+
+        .event-item.event-color-pink {
+          border-left-color: #e91e63;
+          background: linear-gradient(135deg, #fce4ec 0%, #f3e5f5 100%);
+        }
+
+        .event-title {
+          font-weight: 600;
+          color: #333;
+          margin-bottom: 4px;
+        }
+
+        .event-time {
+          color: #666;
+          font-size: 0.9em;
+          margin-bottom: 4px;
+        }
+
+        .event-description {
+          color: #555;
+          font-size: 0.9em;
+          margin-bottom: 4px;
+        }
+
+        .event-type {
+          display: inline-block;
+          background: #e3f2fd;
+          color: #1976d2;
+          padding: 2px 8px;
+          border-radius: 12px;
+          font-size: 0.8em;
+          text-transform: capitalize;
+        }
+
+        /* Event Type Color Variations */
+        .event-type-blue {
+          background: #e3f2fd;
+          color: #1976d2;
+        }
+
+        .event-type-green {
+          background: #e8f5e8;
+          color: #2e7d32;
+        }
+
+        .event-type-red {
+          background: #ffebee;
+          color: #c62828;
+        }
+
+        .event-type-purple {
+          background: #f3e5f5;
+          color: #7b1fa2;
+        }
+
+        .event-type-orange {
+          background: #fff3e0;
+          color: #ef6c00;
+        }
+
+        .event-type-pink {
+          background: #fce4ec;
+          color: #c2185b;
+        }
+
+        .event-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          margin-bottom: 8px;
+        }
+
+        .event-actions {
+          display: flex;
+          gap: 4px;
+          opacity: 0;
+          transition: opacity 0.2s ease;
+        }
+
+        .event-item:hover .event-actions {
+          opacity: 1;
+        }
+
+        .btn-icon {
+          background: none;
+          border: none;
+          padding: 4px 6px;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 12px;
+          transition: all 0.2s ease;
+        }
+
+        .btn-icon.edit-btn {
+          color: #0984e3;
+        }
+
+        .btn-icon.edit-btn:hover {
+          background: #e3f2fd;
+          color: #0652dd;
+        }
+
+        .btn-icon.delete-btn {
+          color: #e17055;
+        }
+
+        .btn-icon.delete-btn:hover {
+          background: #ffeaa7;
+          color: #d63031;
+        }
+
+        @keyframes modernFloat {
+          0%, 100% { transform: translateY(0px) rotate(0deg); }
+          33% { transform: translateY(-10px) rotate(1deg); }
+          66% { transform: translateY(5px) rotate(-1deg); }
+        }
+
+        .shimmer {
+          position: relative;
+          overflow: hidden;
+        }
+
+        .shimmer::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: -100%;
+          width: 100%;
+          height: 100%;
+          background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+          animation: shimmer 2s infinite;
+        }
+
+        @keyframes shimmer {
+          0% { left: -100%; }
+          100% { left: 100%; }
+        }
+
         /* Responsive Design */
         @media (max-width: 768px) {
           .dashboard-container {
@@ -1892,6 +3006,40 @@
           .header-content {
             flex-direction: column;
             text-align: center;
+          }
+
+          .modern-clock-container {
+            order: -1;
+            margin-bottom: 16px;
+            margin-right: 0;
+          }
+
+          .modern-flip-clock {
+            padding: 12px 16px;
+          }
+
+          .flip-digit {
+            width: 28px;
+            height: 38px;
+          }
+
+          .flip-digit-front, .flip-digit-back {
+            font-size: 1.2rem;
+          }
+
+          .time-separator {
+            font-size: 1.4rem;
+            margin: 0 4px;
+          }
+
+          .am-pm-indicator {
+            padding: 6px 8px;
+            font-size: 0.8rem;
+            margin-left: 6px;
+          }
+
+          .clock-details {
+            font-size: 0.7rem;
           }
 
           .dashboard-title {
@@ -2012,6 +3160,187 @@
             padding: 16px;
           }
         }
+
+        /* Calendar Grid Styles */
+        .calendar-weekdays {
+          display: grid !important;
+          grid-template-columns: repeat(7, 1fr) !important;
+          gap: 0 !important;
+          margin-bottom: 0;
+          border: 1px solid #e9ecef;
+          border-bottom: none;
+        }
+
+        .calendar-weekdays {
+          display: grid;
+          grid-template-columns: repeat(7, 1fr);
+          gap: 2px;
+          background: #f1f3f4;
+          padding: 2px 2px 0 2px;
+          border-radius: 12px 12px 0 0;
+        }
+
+        .weekday {
+          background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%);
+          padding: 12px 8px;
+          text-align: center;
+          font-weight: 600;
+          color: white;
+          font-size: 0.9rem;
+          border-radius: 8px 8px 0 0;
+        }
+
+        .calendar-dates-grid {
+          display: grid !important;
+          grid-template-columns: repeat(7, 1fr) !important;
+          gap: 2px !important;
+          background: #f1f3f4;
+          padding: 2px;
+          border-radius: 0 0 12px 12px;
+          width: 100%;
+          max-width: 100%;
+        }
+
+        .calendar-date {
+          background: white;
+          min-height: 120px;
+          border-right: 1px solid #e9ecef;
+          border-bottom: 1px solid #e9ecef;
+          padding: 8px;
+          position: relative;
+          cursor: pointer;
+          transition: background-color 0.2s;
+        }
+
+        .calendar-date:hover {
+          background-color: #f8f9fa;
+        }
+
+        .calendar-date:last-child {
+          border-right: none;
+        }
+
+        .date-number {
+          font-weight: 600;
+          font-size: 1.1rem;
+          color: #333;
+          margin-bottom: 4px;
+        }
+
+        .other-month {
+          color: #ccc !important;
+          background-color: #f8f9fa !important;
+        }
+
+        .other-month .date-number {
+          color: #ccc !important;
+          font-weight: 400 !important;
+        }
+
+        .today {
+          background-color: #e3f2fd;
+          border: 2px solid #2196f3;
+        }
+
+        .today .date-number {
+          color: #1976d2;
+          font-weight: 700;
+        }
+
+        .has-event {
+          background-color: #fff3e0;
+        }
+
+        .event-indicator {
+          position: absolute;
+          bottom: 4px;
+          left: 4px;
+          right: 4px;
+          background: #ff9800;
+          color: white;
+          font-size: 0.7rem;
+          padding: 2px 4px;
+          border-radius: 3px;
+          text-align: center;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        /* Mode Button Styling */
+        .mode-buttons {
+          display: flex;
+          gap: 0;
+          border-radius: 8px;
+          overflow: hidden;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .mode-btn {
+          background: white;
+          border: 1px solid #dee2e6;
+          padding: 12px 20px;
+          font-weight: 500;
+          color: #495057;
+          transition: all 0.2s ease;
+          border-radius: 0;
+          position: relative;
+        }
+
+        .mode-btn:first-child {
+          border-top-left-radius: 8px;
+          border-bottom-left-radius: 8px;
+        }
+
+        .mode-btn:last-child {
+          border-top-right-radius: 8px;
+          border-bottom-right-radius: 8px;
+          border-left: none;
+        }
+
+        .mode-btn:hover {
+          background: #f8f9fa;
+          color: #495057;
+          transform: translateY(-1px);
+          box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+
+        .mode-btn.active {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          border-color: #667eea;
+          box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .mode-btn.active:hover {
+          background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
+          transform: translateY(-1px);
+          box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
+        }
+
+        .mode-btn i {
+          margin-right: 8px;
+        }
+
+        @media (max-width: 768px) {
+          .calendar-dates-grid {
+            grid-template-columns: repeat(7, 1fr) !important;
+          }
+
+          .calendar-date {
+            min-height: 80px;
+            padding: 4px;
+          }
+
+          .date-number {
+            font-size: 1rem;
+          }
+
+          .mode-btn {
+            padding: 10px 16px;
+            font-size: 0.9rem;
+          }
+        }
     </style>
 </head>
 <body>
@@ -2020,10 +3349,73 @@
         <header class="dashboard-header">
             <div class="header-content">
                 <div class="header-left">
-                    <h1 class="dashboard-title">🎓 Academic Calculator</h1>
+                    <h1 class="dashboard-title">🎓 Academia </h1>
+                    <h2 class  = "dashboard-subtitle">Where Knowledge Meets Convenience</h2>
                     <p class="dashboard-subtitle">Welcome, {{ session.student_name or session.username }}!</p>
                 </div>
                 <div class="header-right">
+                    <!-- Modern Flip Clock -->
+                    <div class="modern-clock-container">
+                        <div class="modern-flip-clock">
+                            <div class="time-display">
+                                <div class="flip-digit-group">
+                                    <div class="flip-digit" id="hour1">
+                                        <div class="flip-digit-inner">
+                                            <div class="flip-digit-front">0</div>
+                                            <div class="flip-digit-back">0</div>
+                                        </div>
+                                    </div>
+                                    <div class="flip-digit" id="hour2">
+                                        <div class="flip-digit-inner">
+                                            <div class="flip-digit-front">0</div>
+                                            <div class="flip-digit-back">0</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="time-separator">:</div>
+                                <div class="flip-digit-group">
+                                    <div class="flip-digit" id="minute1">
+                                        <div class="flip-digit-inner">
+                                            <div class="flip-digit-front">0</div>
+                                            <div class="flip-digit-back">0</div>
+                                        </div>
+                                    </div>
+                                    <div class="flip-digit" id="minute2">
+                                        <div class="flip-digit-inner">
+                                            <div class="flip-digit-front">0</div>
+                                            <div class="flip-digit-back">0</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="time-separator">:</div>
+                                <div class="flip-digit-group">
+                                    <div class="flip-digit" id="second1">
+                                        <div class="flip-digit-inner">
+                                            <div class="flip-digit-front">0</div>
+                                            <div class="flip-digit-back">0</div>
+                                        </div>
+                                    </div>
+                                    <div class="flip-digit" id="second2">
+                                        <div class="flip-digit-inner">
+                                            <div class="flip-digit-front">0</div>
+                                            <div class="flip-digit-back">0</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="am-pm-indicator" id="amPmIndicator">AM</div>
+                            </div>
+                            <div class="clock-details">
+                                <div class="timezone-info" id="timezoneInfo">Loading...</div>
+                                <div class="date-info" id="dateInfo">Loading...</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Theme Toggle -->
+                    <button class="theme-toggle-btn" onclick="toggleTheme()" type="button" title="Toggle Dark/Light Theme">
+                        <i class="fas fa-moon" id="themeIcon"></i>
+                    </button>
+
                     <button class="timetable-btn" onclick="showTimetable()" type="button">
                         <i class="fas fa-calendar"></i> My Timetable
                     </button>
@@ -2046,7 +3438,7 @@
                 <i class="fas fa-book-open"></i> Attendance
             </button>
             <button class="tab-btn" data-tab="holidays" type="button">
-                <i class="fas fa-calendar"></i> Kerala Holidays
+                <i class="fas fa-calendar"></i> Calendar
             </button>
             <button class="tab-btn" data-tab="history" type="button">
                 <i class="fas fa-history"></i> History
@@ -2115,15 +3507,54 @@ or
                                         <option value="assignment">📝 Assignment</option>
                                         <option value="exam">📚 Exam</option>
                                         <option value="project">🎯 Project</option>
+                                        <option value="lab">🧪 Lab</option>
                                     </select>
                                 </div>
                                 <div class="input-group">
                                     <label for="reminderDate">Due Date</label>
                                     <input type="date" id="reminderDate">
                                 </div>
-                                <div class="input-group full-width">
-                                    <label for="reminderDescription">Description</label>
-                                    <textarea id="reminderDescription" placeholder="Additional details about the reminder..." rows="3"></textarea>
+                                <div class="time-description-row">
+                                    <div class="input-group">
+                                        <label for="reminderTime">⏰ Time (Optional)</label>
+                                        <div class="time-input-container">
+                                            <select id="reminderTimeHour" class="time-select">
+                                                <option value="">Hr</option>
+                                                <option value="1">1</option>
+                                                <option value="2">2</option>
+                                                <option value="3">3</option>
+                                                <option value="4">4</option>
+                                                <option value="5">5</option>
+                                                <option value="6">6</option>
+                                                <option value="7">7</option>
+                                                <option value="8">8</option>
+                                                <option value="9">9</option>
+                                                <option value="10">10</option>
+                                                <option value="11">11</option>
+                                                <option value="12">12</option>
+                                            </select>
+                                            <span class="time-separator">:</span>
+                                            <select id="reminderTimeMinute" class="time-select">
+                                                <option value="">Min</option>
+                                                <option value="00">00</option>
+                                                <option value="15">15</option>
+                                                <option value="30">30</option>
+                                                <option value="45">45</option>
+                                                <option value="59">59</option>
+                                            </select>
+                                            <select id="reminderTimeAmPm" class="time-select">
+                                                <option value="">AM/PM</option>
+                                                <option value="AM">AM</option>
+                                                <option value="PM">PM</option>
+                                            </select>
+                                        </div>
+                                        <input type="hidden" id="reminderTime">
+                                        <small class="input-help">Leave empty for default time</small>
+                                    </div>
+                                    <div class="input-group description-group">
+                                        <label for="reminderDescription">Description</label>
+                                        <textarea id="reminderDescription" placeholder="Additional details about the reminder..." rows="3"></textarea>
+                                    </div>
                                 </div>
                             </div>
                             <div class="button-group">
@@ -2196,6 +3627,9 @@ or
                                     <button onclick="sendTestEmail()" class="btn btn-secondary" type="button">
                                         <i class="fas fa-paper-plane"></i> Send Test Email
                                     </button>
+                                    <button onclick="checkEmailNotifications()" class="btn btn-warning" type="button">
+                                        <i class="fas fa-bell"></i> Check Email Notifications
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -2204,6 +3638,37 @@ or
 
                 <!-- Reminders Display -->
                 <div class="reminders-display-section">
+                    <!-- Filter Options -->
+                    <div class="reminder-filters">
+                        <div class="filter-group">
+                            <label for="categoryFilter">Category:</label>
+                            <select id="categoryFilter" onchange="applyFilters()">
+                                <option value="all">All</option>
+                                <option value="assignment">📝 Assignment</option>
+                                <option value="exam">📚 Exam</option>
+                                <option value="project">🎯 Project</option>
+                                <option value="lab">🧪 Lab</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label for="priorityFilter">Priority:</label>
+                            <select id="priorityFilter" onchange="applyFilters()">
+                                <option value="all">All</option>
+                                <option value="critical">🔴 Critical</option>
+                                <option value="urgent">🟠 Urgent</option>
+                                <option value="overdue">🚨 Overdue</option>
+                                <option value="due_today">📅 Due Today</option>
+                                <option value="due_tomorrow">📆 Due Tomorrow</option>
+                                <option value="upcoming">🗓️ Upcoming</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <button id="clearFilters" onclick="clearAllFilters()" class="clear-filters-btn">
+                                <i class="fas fa-times"></i> Clear Filters
+                            </button>
+                        </div>
+                    </div>
+
                     <!-- Reminder Statistics -->
                     <div id="reminderStats" class="reminder-stats" style="display: none;">
                         <div class="stats-grid">
@@ -2233,6 +3698,9 @@ or
                     <div class="section-header">
                         <h3><i class="fas fa-list"></i> Your Reminders</h3>
                         <div class="header-actions">
+                            <button class="btn btn-secondary" onclick="fixReminderTimes()" title="Fix reminder times from descriptions">
+                                <i class="fas fa-clock"></i> Fix Times
+                            </button>
                             <div id="storageStatus" class="storage-status" title="LocalStorage backup status">
                                 <i class="fas fa-database"></i>
                                 <span id="storageStatusText">Checking...</span>
@@ -2259,13 +3727,27 @@ or
                 <div class="formula-info">
                     <strong>CGPA Formula:</strong> CGPA = Σ(SGPA × Credits) / Σ(Credits)
                 </div>
-                
+
                 <div class="calculator-grid">
                     <div class="calculator-card">
                         <div class="card-header">
                             <h3>📝 Enter Semester Details</h3>
                         </div>
                         <div class="card-content">
+                            <div class="cgpa-scale-selector">
+                                <div class="input-group">
+                                    <label>CGPA Scale</label>
+                                    <select id="cgpaScale" onchange="updateCGPAScale()">
+                                        <option value="10">10 Point Scale (Indian Universities)</option>
+                                        <option value="5">5 Point Scale (German System)</option>
+                                        <option value="4">4 Point Scale (US GPA)</option>
+                                    </select>
+                                </div>
+                                <div class="scale-info" id="scaleInfo">
+                                    <small>Range: 0.0 - 10.0 | Excellent: 9.0+, Good: 7.0-8.9, Average: 6.0-6.9</small>
+                                </div>
+                            </div>
+
                             <div id="semesterContainer" class="semester-container">
                                 <div class="semester-item" data-semester="1">
                                     <div class="semester-header">
@@ -2380,19 +3862,117 @@ or
                 </div>
             </div>
 
-            <!-- Holidays Tab -->
+            <!-- Calendar Tab -->
             <div id="holidays" class="tab-pane">
-                <div class="holidays-header">
-                    <h2>Kerala Holidays 2025</h2>
-                    <button onclick="loadHolidays()" class="btn btn-primary" type="button">
-                        <i class="fas fa-calendar"></i> Load Holidays
-                    </button>
+                <div class="calendar-header">
+                    <h2>📅 Calendar</h2>
+
+                    <!-- Mode Selection -->
+                    <div class="calendar-mode-selection">
+                        <div class="mode-buttons">
+                            <button onclick="switchCalendarMode('calendar')" id="calendarModeBtn" class="mode-btn active" type="button">
+                                <i class="fas fa-calendar-alt"></i> Calendar
+                            </button>
+                            <button onclick="switchCalendarMode('holidays')" id="holidaysModeBtn" class="mode-btn" type="button">
+                                <i class="fas fa-star"></i> Holidays
+                            </button>
+                        </div>
+                    </div>
                 </div>
-                
-                <div id="holidaysContainer" class="holidays-grid">
-                    <div class="empty-state">
-                        <i class="fas fa-calendar empty-icon"></i>
-                        <p>Click "Load Holidays" to see Kerala holidays for 2025</p>
+
+                <!-- Calendar Mode -->
+                <div id="calendarMode" class="calendar-mode-content">
+                    <!-- Calendar Header with Navigation and Add Event Button -->
+                    <div class="calendar-header-row">
+                        <div class="calendar-navigation">
+                            <button onclick="previousMonth()" class="nav-btn" type="button">
+                                <i class="fas fa-chevron-left"></i>
+                            </button>
+                            <div class="current-month-year">
+                                <span id="currentMonthYear">July 2025</span>
+                            </div>
+                            <button onclick="nextMonth()" class="nav-btn" type="button">
+                                <i class="fas fa-chevron-right"></i>
+                            </button>
+                        </div>
+
+                        <div class="calendar-actions">
+                            <button onclick="goToToday()" class="btn btn-secondary" type="button">
+                                <i class="fas fa-calendar-day"></i> Today
+                            </button>
+                            <button onclick="openAddEventModal()" class="btn btn-primary" type="button">
+                                <i class="fas fa-plus"></i> Add Event
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Calendar Grid -->
+                    <div class="calendar-view">
+                        <div class="calendar-weekdays">
+                            <div class="weekday">Sun</div>
+                            <div class="weekday">Mon</div>
+                            <div class="weekday">Tue</div>
+                            <div class="weekday">Wed</div>
+                            <div class="weekday">Thu</div>
+                            <div class="weekday">Fri</div>
+                            <div class="weekday">Sat</div>
+                        </div>
+                        <div id="calendarGrid" class="calendar-dates-grid">
+                            <!-- Calendar dates will be generated here -->
+                        </div>
+                    </div>
+
+                    <!-- Event Details Panel -->
+                    <div id="eventDetailsPanel" class="event-details-panel" style="display: none;">
+                        <div class="panel-header">
+                            <h4 id="selectedDateTitle">Events for Selected Date</h4>
+                            <button onclick="closeEventPanel()" class="close-btn" type="button">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <div id="eventsList" class="events-list">
+                            <!-- Events for selected date will appear here -->
+                        </div>
+                        <div class="panel-actions">
+                            <button onclick="openAddEventModal()" class="btn btn-success" type="button">
+                                <i class="fas fa-plus"></i> Add Event
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Holidays Mode -->
+                <div id="holidaysMode" class="calendar-mode-content" style="display: none;">
+                    <div class="holidays-controls">
+                        <div class="input-group" style="margin-right: 15px;">
+                            <label>Year</label>
+                            <select id="holidayYear" onchange="loadHolidaysList()">
+                                <option value="2024">2024</option>
+                                <option value="2025" selected>2025</option>
+                                <option value="2026">2026</option>
+                                <option value="2027">2027</option>
+                            </select>
+                        </div>
+                        <div class="input-group" style="margin-right: 15px;">
+                            <label>Type</label>
+                            <select id="holidayType" onchange="loadHolidaysList()">
+                                <option value="">All Types</option>
+                                <option value="national">National</option>
+                                <option value="state">State</option>
+                                <option value="religious">Religious</option>
+                                <option value="festival">Festival</option>
+                            </select>
+                        </div>
+                        <button onclick="loadHolidaysList()" class="btn btn-primary" type="button">
+                            <i class="fas fa-star"></i> Load Holidays
+                        </button>
+                    </div>
+
+                    <div id="holidaysContainer" class="holidays-grid">
+                        <div class="empty-state">
+                            <i class="fas fa-star empty-icon"></i>
+                            <p>Select a year and click "Load Holidays" to see holidays</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -2565,11 +4145,48 @@ or
                                 <option value="assignment">📝 Assignment</option>
                                 <option value="exam">📚 Exam</option>
                                 <option value="project">🎯 Project</option>
+                                <option value="lab">🧪 Lab</option>
                             </select>
                         </div>
                         <div class="form-group">
                             <label for="editReminderDate">Due Date</label>
                             <input type="date" id="editReminderDate">
+                        </div>
+                        <div class="form-group">
+                            <label for="editReminderTime">⏰ Time (Optional)</label>
+                            <div class="time-input-container">
+                                <select id="editReminderTimeHour" class="time-select">
+                                    <option value="">Hr</option>
+                                    <option value="1">1</option>
+                                    <option value="2">2</option>
+                                    <option value="3">3</option>
+                                    <option value="4">4</option>
+                                    <option value="5">5</option>
+                                    <option value="6">6</option>
+                                    <option value="7">7</option>
+                                    <option value="8">8</option>
+                                    <option value="9">9</option>
+                                    <option value="10">10</option>
+                                    <option value="11">11</option>
+                                    <option value="12">12</option>
+                                </select>
+                                <span class="time-separator">:</span>
+                                <select id="editReminderTimeMinute" class="time-select">
+                                    <option value="">Min</option>
+                                    <option value="00">00</option>
+                                    <option value="15">15</option>
+                                    <option value="30">30</option>
+                                    <option value="45">45</option>
+                                    <option value="59">59</option>
+                                </select>
+                                <select id="editReminderTimeAmPm" class="time-select">
+                                    <option value="">AM/PM</option>
+                                    <option value="AM">AM</option>
+                                    <option value="PM">PM</option>
+                                </select>
+                            </div>
+                            <input type="hidden" id="editReminderTime">
+                            <small class="input-help">Leave empty for default time</small>
                         </div>
                     </div>
 
@@ -2589,6 +4206,72 @@ or
         </div>
     </div>
 
+    <!-- Add Event Modal -->
+    <div id="addEventModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="addEventModalLabel">📅 Add Calendar Event</h3>
+                <button class="modal-close" onclick="closeAddEventModal()" type="button">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="addEventForm">
+                    <div class="form-group">
+                        <label for="eventTitle">Event Title</label>
+                        <input type="text" id="eventTitle" placeholder="e.g., Team Meeting" required>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="eventDate">Date</label>
+                            <input type="date" id="eventDate" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="eventTime">Time (Optional)</label>
+                            <input type="time" id="eventTime">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="eventType">Type</label>
+                            <select id="eventType">
+                                <option value="personal">Personal</option>
+                                <option value="work">Work</option>
+                                <option value="academic">Academic</option>
+                                <option value="meeting">Meeting</option>
+                                <option value="reminder">Reminder</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="eventColor">Color</label>
+                            <select id="eventColor">
+                                <option value="blue">Blue</option>
+                                <option value="green">Green</option>
+                                <option value="red">Red</option>
+                                <option value="purple">Purple</option>
+                                <option value="orange">Orange</option>
+                                <option value="pink">Pink</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="eventDescription">Description (Optional)</label>
+                        <textarea id="eventDescription" rows="3" placeholder="Event details..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeAddEventModal()" class="btn btn-secondary" type="button">Cancel</button>
+                <button onclick="saveEvent()" class="btn btn-primary" type="button">
+                    <i class="fas fa-save"></i> Save Event
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Flash Messages -->
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
@@ -2603,8 +4286,14 @@ or
         {% endif %}
     {% endwith %}
 
+
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <!-- Load external JavaScript file -->
-    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/script.js') }}?v=3.5"></script>
+
+
 </body>
 </html>
 

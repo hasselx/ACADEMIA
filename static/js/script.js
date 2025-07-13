@@ -67,6 +67,20 @@ document.addEventListener("DOMContentLoaded", () => {
   checkOnlineStatus()
   updateStorageStatusIndicator()
 
+  // Add event listeners for time dropdowns
+  const timeDropdowns = ['reminderTimeHour', 'reminderTimeMinute', 'reminderTimeAmPm',
+                        'editReminderTimeHour', 'editReminderTimeMinute', 'editReminderTimeAmPm']
+
+  timeDropdowns.forEach(id => {
+    const element = document.getElementById(id)
+    if (element) {
+      element.addEventListener('change', () => {
+        const prefix = id.includes('edit') ? 'editReminder' : 'reminder'
+        updateHiddenTimeField(prefix)
+      })
+    }
+  })
+
   // Periodic sync check (every 5 minutes)
   setInterval(() => {
     if (navigator.onLine) {
@@ -85,6 +99,59 @@ let currentDayIndex = 0
 let currentTimetable = {}
 let editingIndex = -1
 let editingReminderId = null
+let allReminders = [] // Store all reminders for filtering
+
+// Time format conversion functions
+function convertTo24Hour(hour, minute, ampm) {
+  if (!hour || !ampm) return null
+
+  let hour24 = parseInt(hour)
+  const min = minute || '00'
+
+  if (ampm === 'AM') {
+    if (hour24 === 12) hour24 = 0
+  } else if (ampm === 'PM') {
+    if (hour24 !== 12) hour24 += 12
+  }
+
+  return `${hour24.toString().padStart(2, '0')}:${min}`
+}
+
+function convertTo12Hour(time24) {
+  if (!time24) return { hour: '', minute: '', ampm: '' }
+
+  const [hours, minutes] = time24.split(':')
+  let hour = parseInt(hours)
+  const ampm = hour >= 12 ? 'PM' : 'AM'
+
+  if (hour === 0) hour = 12
+  else if (hour > 12) hour -= 12
+
+  return {
+    hour: hour.toString(),
+    minute: minutes,
+    ampm: ampm
+  }
+}
+
+function updateHiddenTimeField(prefix = 'reminder') {
+  const hour = document.getElementById(`${prefix}TimeHour`).value
+  const minute = document.getElementById(`${prefix}TimeMinute`).value
+  const ampm = document.getElementById(`${prefix}TimeAmPm`).value
+
+  const time24 = convertTo24Hour(hour, minute, ampm)
+  document.getElementById(`${prefix}Time`).value = time24 || ''
+}
+
+function setTimeFields(prefix, time24) {
+  const { hour, minute, ampm } = convertTo12Hour(time24)
+
+  document.getElementById(`${prefix}TimeHour`).value = hour
+  document.getElementById(`${prefix}TimeMinute`).value = minute
+  document.getElementById(`${prefix}TimeAmPm`).value = ampm
+
+  updateHiddenTimeField(prefix)
+}
 
 const days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
 const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
@@ -305,6 +372,35 @@ function getStorageInfo() {
   }
 }
 
+function fixReminderTimes() {
+  if (!confirm('This will update reminder times by re-parsing their descriptions. Continue?')) {
+    return
+  }
+
+  console.log("Fixing reminder times...")
+
+  fetch('/api/reminders/fix-times', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      showNotification(`✅ ${data.message}`, 'success')
+      // Reload reminders to show updated times
+      loadReminders()
+    } else {
+      showNotification(`❌ ${data.error || data.message}`, 'error')
+    }
+  })
+  .catch(error => {
+    console.error('Error fixing reminder times:', error)
+    showNotification('❌ Error fixing reminder times', 'error')
+  })
+}
+
 function showStorageStatus() {
   const info = getStorageInfo()
   if (!info) return
@@ -384,10 +480,10 @@ function startCountdownUpdates() {
     clearInterval(countdownInterval)
   }
 
-  // Update countdown every minute
+  // Update countdown more frequently for time-sensitive reminders
   countdownInterval = setInterval(() => {
     updateCountdownDisplays()
-  }, 60000) // 60 seconds
+  }, 30000) // 30 seconds for better real-time updates
 }
 
 function stopCountdownUpdates() {
@@ -402,6 +498,8 @@ function updateCountdownDisplays() {
     const reminderItems = document.querySelectorAll('.reminder-item')
     const now = new Date()
 
+    console.log(`🔄 updateCountdownDisplays: Processing ${reminderItems.length} items`)
+
     reminderItems.forEach(item => {
       const countdownElement = item.querySelector('.reminder-countdown')
       if (!countdownElement) return
@@ -410,35 +508,95 @@ function updateCountdownDisplays() {
       const dueDateAttr = item.getAttribute('data-due-date')
       if (!dueDateAttr) return
 
-      const dueDate = new Date(dueDateAttr)
-      const timeDiff = dueDate - now
-      const daysLeft = Math.ceil(timeDiff / (1000 * 60 * 60 * 24))
-      const hoursLeft = timeDiff / (1000 * 60 * 60)
+      const reminderId = item.getAttribute('data-reminder-id')
+      console.log(`🔍 Processing reminder ${reminderId}: due_date="${dueDateAttr}"`)
+
+      // Parse the date more robustly to handle timezone formats
+      let dueDate
+      try {
+        // Clean up corrupted date formats
+        let dateStr = dueDateAttr
+
+        // Handle the +00:00Z format by converting it to a standard ISO format
+        if (dateStr.includes('+00:00Z')) {
+          dateStr = dateStr.replace('+00:00Z', 'Z')
+        }
+
+        // Fix dates with double timezone suffixes like +00:00+00:00
+        const doubleTzPattern = /(\+\d{2}:\d{2})\+\d{2}:\d{2}$/
+        if (doubleTzPattern.test(dateStr)) {
+          dateStr = dateStr.replace(doubleTzPattern, '$1')
+        }
+        dueDate = new Date(dateStr)
+
+        // Validate the date
+        if (isNaN(dueDate.getTime())) {
+          console.warn('Invalid date format:', dueDateAttr)
+          return
+        }
+      } catch (error) {
+        console.error('Error parsing date:', dueDateAttr, error)
+        return
+      }
 
       let newCountdown = ''
       let newStatus = ''
 
-      if (daysLeft < 0) {
+      // Compare dates properly - use date-only comparison for day calculations
+      const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      const dueOnlyDate = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate())
+      const daysDiff = Math.floor((dueOnlyDate - nowDate) / (1000 * 60 * 60 * 24))
+
+
+
+      // Use full datetime comparison instead of date-only comparison
+      const timeDiff = dueDate.getTime() - now.getTime()
+
+
+
+      if (timeDiff < 0) {
+        // Past due - calculate how long overdue
+        const hoursOverdue = Math.floor(Math.abs(timeDiff) / (1000 * 60 * 60))
+        const minutesOverdue = Math.floor((Math.abs(timeDiff) % (1000 * 60 * 60)) / (1000 * 60))
+
         newStatus = 'overdue'
-        newCountdown = `🚨 ${Math.abs(daysLeft)} days overdue`
-      } else if (daysLeft === 0) {
-        // All items due today go to "Due Today" regardless of specific time
-        newStatus = 'due_today'
-        if (hoursLeft < 0) {
-          newCountdown = '📅 Due today (time passed)'
-        } else if (hoursLeft < 2) {
-          newCountdown = `⏰ Due in ${Math.floor(hoursLeft * 60)} minutes!`
-        } else if (hoursLeft < 6) {
-          newCountdown = `📅 Due in ${Math.floor(hoursLeft)} hours`
+        if (daysDiff < -1) {
+          // More than 1 day overdue
+          const daysOverdue = Math.abs(daysDiff)
+          newCountdown = `🚨 ${daysOverdue} days overdue`
+        } else if (hoursOverdue >= 24) {
+          // More than 24 hours overdue
+          const daysOverdue = Math.floor(hoursOverdue / 24)
+          newCountdown = `🚨 ${daysOverdue} days overdue`
+        } else if (hoursOverdue > 0) {
+          // Hours overdue
+          newCountdown = `🚨 Overdue by ${hoursOverdue}h ${minutesOverdue}m`
         } else {
-          newCountdown = '📅 Due today!'
+          // Minutes overdue
+          newCountdown = `🚨 Overdue by ${minutesOverdue}m`
         }
-      } else if (daysLeft === 1) {
+      } else if (timeDiff < 60 * 60 * 1000) {
+        // Due within 1 hour
+        const minutesLeft = Math.floor(timeDiff / (1000 * 60))
+        newStatus = 'due_now'
+        newCountdown = `⏰ Due in ${minutesLeft}m`
+      } else if (timeDiff < 3 * 60 * 60 * 1000) {
+        // Due within 3 hours
+        const hoursLeft = Math.floor(timeDiff / (1000 * 60 * 60))
+        const minutesLeft = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60))
+        newStatus = 'due_soon'
+        newCountdown = `⏳ Due in ${hoursLeft}h ${minutesLeft}m`
+      } else if (daysDiff === 0) {
+        // Due later today
+        const timeString = dueDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+        newStatus = 'due_today'
+        newCountdown = `📅 Due today at ${timeString}`
+      } else if (daysDiff === 1) {
         newStatus = 'due_tomorrow'
         newCountdown = '📆 Due tomorrow'
       } else {
         newStatus = 'upcoming'
-        newCountdown = `🗓️ ${daysLeft} days left`
+        newCountdown = `🗓️ ${daysDiff} days left`
       }
 
       // Update the countdown text and class
@@ -483,7 +641,7 @@ function updateReminderStatistics() {
       if (countdownElement) {
         const status = countdownElement.className
         if (status.includes('overdue')) stats.overdue++
-        if (status.includes('due_today') || status.includes('due_now')) stats.dueToday++
+        if (status.includes('due_today') || status.includes('due_now') || status.includes('due_soon')) stats.dueToday++
       }
     })
 
@@ -633,6 +791,44 @@ function sendTestEmail() {
     })
   } catch (error) {
     console.error('Error in sendTestEmail:', error)
+  }
+}
+
+function checkEmailNotifications() {
+  try {
+    const checkBtn = document.querySelector('button[onclick="checkEmailNotifications()"]')
+    const originalText = checkBtn.innerHTML
+    checkBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking...'
+    checkBtn.disabled = true
+
+    fetch('/api/reminders/check-email-notifications', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({})
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        const message = data.notifications_sent > 0
+          ? `✅ Email check completed! Sent ${data.notifications_sent} notification(s).`
+          : '✅ Email check completed! No notifications needed at this time.'
+        showNotification(message, 'success')
+      } else {
+        showNotification(data.error || 'Failed to check email notifications', 'error')
+      }
+    })
+    .catch(error => {
+      console.error('Error checking email notifications:', error)
+      showNotification('Error checking email notifications', 'error')
+    })
+    .finally(() => {
+      checkBtn.innerHTML = originalText
+      checkBtn.disabled = false
+    })
+  } catch (error) {
+    console.error('Error in checkEmailNotifications:', error)
   }
 }
 
@@ -794,7 +990,7 @@ function switchTab(tabId) {
   setTimeout(() => {
     console.log(`Step 5: Loading data for tab: ${tabId}`)
     if (tabId === "holidays") {
-      loadHolidays()
+      loadCalendar()
     } else if (tabId === "history") {
       loadHistory()
     } else if (tabId === "timetable") {
@@ -849,6 +1045,9 @@ function parseMessage() {
           if (data.parsed_date) {
             document.getElementById("reminderDate").value = data.parsed_date
           }
+          if (data.parsed_time) {
+            setTimeFields('reminder', data.parsed_time)
+          }
 
           showNotification("Message parsed successfully! Review and save the reminder.", "success")
         }
@@ -883,16 +1082,45 @@ function saveReminder() {
     const type = document.getElementById("reminderType").value
     const dueDate = document.getElementById("reminderDate").value
 
+    // Update hidden time field before getting its value
+    updateHiddenTimeField('reminder')
+    const dueTime = document.getElementById("reminderTime").value
+
     if (!title) {
       showNotification("Please enter a title for the reminder", "error")
       return
+    }
+
+    // Combine date and time if both are provided
+    let dueDateTimeISO = null
+    if (dueDate) {
+      let dateTime = new Date(dueDate)
+
+      if (dueTime) {
+        // Parse time and set it on the date
+        const [hours, minutes] = dueTime.split(':')
+        dateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0)
+      } else {
+        // Set default time based on reminder type
+        if (type === 'assignment' || type === 'project') {
+          dateTime.setHours(23, 59, 0, 0) // 11:59 PM for assignments/projects
+        } else if (type === 'exam') {
+          dateTime.setHours(9, 0, 0, 0) // 9:00 AM for exams
+        } else if (type === 'lab') {
+          dateTime.setHours(14, 0, 0, 0) // 2:00 PM for labs
+        } else {
+          dateTime.setHours(23, 59, 0, 0) // Default to end of day
+        }
+      }
+
+      dueDateTimeISO = dateTime.toISOString()
     }
 
     const reminderData = {
       title: title,
       description: description,
       type: type,
-      due_date: dueDate ? new Date(dueDate).toISOString() : null,
+      due_date: dueDateTimeISO,
     }
 
     console.log("Fetching /api/reminders (POST) to save reminder...")
@@ -973,6 +1201,10 @@ function resetReminderForm() {
     document.getElementById("reminderDescription").value = ""
     document.getElementById("reminderType").value = "assignment"
     document.getElementById("reminderDate").value = ""
+    document.getElementById("reminderTime").value = ""
+    document.getElementById("reminderTimeHour").value = ""
+    document.getElementById("reminderTimeMinute").value = ""
+    document.getElementById("reminderTimeAmPm").value = ""
     document.getElementById("messageInput").value = ""
   } catch (error) {
     console.error("Error resetting reminder form:", error)
@@ -988,6 +1220,8 @@ function loadReminders() {
       console.error("❌ Reminders container not found!")
       return
     }
+
+
 
     container.innerHTML = `
             <div class="loading-state">
@@ -1008,10 +1242,19 @@ function loadReminders() {
         console.log("📦 Data from Firebase:", data)
         console.log("📊 Reminders count:", data.reminders ? data.reminders.length : 0)
 
-        displayReminders(data.reminders || [])
-        if (data.reminders && data.reminders.length > 0) {
-          showNotification(`Loaded ${data.reminders.length} reminders from Firebase`, "success")
+        // Debug all reminders to see what we have
+        if (data.reminders) {
+          console.log("🔍 ALL REMINDERS DEBUG:")
+          data.reminders.forEach((reminder, index) => {
+            console.log(`  ${index}: ${reminder.title}`)
+            console.log(`    due_date: ${reminder.due_date}`)
+            console.log(`    due_time: ${reminder.due_time}`)
+            console.log(`    description: ${reminder.description}`)
+          })
         }
+
+        allReminders = data.reminders || []
+        displayReminders(allReminders)
       })
       .catch((error) => {
         console.error("❌ Error loading reminders from Firebase:", error)
@@ -1028,14 +1271,127 @@ function loadReminders() {
   }
 }
 
+// Store parsed times in memory to persist during session
+const parsedTimes = new Map()
+
+// Debug: Log when the script loads
+console.log('🔧 Script loaded with time parsing fix v2.0')
+
+// Function to get or parse time for a reminder
+function getOrParseTime(reminder) {
+  // Check if we already parsed this reminder's time
+  if (parsedTimes.has(reminder.id)) {
+    return parsedTimes.get(reminder.id)
+  }
+
+  // If reminder already has due_time, use it
+  if (reminder.due_time) {
+    parsedTimes.set(reminder.id, reminder.due_time)
+    return reminder.due_time
+  }
+
+  // Try to parse time from description
+  if (reminder.description) {
+    const timeMatch = reminder.description.match(/\b(\d{1,2}):?(\d{2})?\s*(am|pm|AM|PM)\b/)
+    if (timeMatch) {
+      let hours = parseInt(timeMatch[1])
+      const minutes = timeMatch[2] ? parseInt(timeMatch[2]) : 0
+      const ampm = timeMatch[3].toLowerCase()
+
+      // Convert to 24-hour format
+      if (ampm === 'pm' && hours !== 12) {
+        hours += 12
+      } else if (ampm === 'am' && hours === 12) {
+        hours = 0
+      }
+
+      const parsedTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
+      parsedTimes.set(reminder.id, parsedTime)
+
+      console.log(`⏰ Parsed time for ${reminder.title}: ${timeMatch[0]} -> ${parsedTime}`)
+      return parsedTime
+    }
+  }
+
+  // No time found
+  return null
+}
+
 function enhanceReminderData(reminder) {
   try {
     const now = new Date()
     const enhanced = { ...reminder }
 
+    // Debug problematic reminders
+    if (reminder.title && (reminder.title.includes('MAJOR') || reminder.title.includes('OPERATION RESEARCH') || reminder.title.includes('COMPUTER'))) {
+      console.log(`🔧 Enhancing ${reminder.title}:`)
+      console.log('  Original due_date:', reminder.due_date)
+      console.log('  Original due_time:', reminder.due_time)
+    }
+
+
+
     // Format due date
     if (reminder.due_date) {
-      const dueDate = new Date(reminder.due_date)
+      // Clean up the date string to handle various corrupted formats
+      let cleanedDateStr = reminder.due_date
+
+      // Fix dates with timezone + Z like +00:00Z
+      if (cleanedDateStr.includes('+00:00Z')) {
+        cleanedDateStr = cleanedDateStr.replace('+00:00Z', 'Z')
+      }
+
+      // Fix dates with double timezone suffixes like +00:00+00:00
+      const doubleTzPattern = /(\+\d{2}:\d{2})\+\d{2}:\d{2}$/
+      if (doubleTzPattern.test(cleanedDateStr)) {
+        cleanedDateStr = cleanedDateStr.replace(doubleTzPattern, '$1')
+      }
+
+      let dueDate = new Date(cleanedDateStr)
+
+      // Get or parse time for this reminder
+      const dueTime = getOrParseTime(reminder)
+      if (dueTime) {
+        enhanced.due_time = dueTime
+
+        // Parse the time and set it on the due date
+        const [hours, minutes] = dueTime.split(':').map(Number)
+        dueDate.setHours(hours, minutes, 0, 0)
+
+        // Update the enhanced due_date to include the parsed time
+        enhanced.due_date = dueDate.toISOString()
+
+        console.log(`⏰ Using time for ${reminder.title}: ${dueTime}`)
+        console.log(`  Updated dueDate:`, dueDate)
+        console.log(`  Enhanced due_date:`, enhanced.due_date)
+      } else if (reminder.due_time) {
+        // Use existing due_time if available
+        const [hours, minutes] = reminder.due_time.split(':').map(Number)
+        dueDate.setHours(hours, minutes, 0, 0)
+
+        // Update the enhanced due_date to include the existing time
+        enhanced.due_date = dueDate.toISOString()
+      }
+
+      // Debug problematic reminders
+      if (reminder.title && (reminder.title.includes('MAJOR') || reminder.title.includes('OPERATION RESEARCH') || reminder.title.includes('COMPUTER'))) {
+        console.log(`  Cleaned date string: "${cleanedDateStr}"`)
+        console.log(`  Parsed dueDate:`, dueDate)
+        console.log(`  dueDate.getTime():`, dueDate.getTime())
+        console.log(`  Current time:`, now)
+      }
+
+      // Validate the date
+      if (isNaN(dueDate.getTime())) {
+        console.warn('Invalid date format in enhanceReminderData:', reminder.due_date, 'cleaned:', cleanedDateStr)
+        // Set fallback values
+        enhanced.status = 'no_date'
+        enhanced.priority = 'low'
+        enhanced.countdown = 'No due date'
+        enhanced.formatted_due_date = 'No due date'
+        return enhanced
+      }
+
       enhanced.formatted_due_date = dueDate.toLocaleDateString('en-US', {
         weekday: 'short',
         year: 'numeric',
@@ -1043,36 +1399,88 @@ function enhanceReminderData(reminder) {
         day: 'numeric'
       })
 
-      // Calculate countdown and status
-      const timeDiff = dueDate - now
-      const daysLeft = Math.ceil(timeDiff / (1000 * 60 * 60 * 24))
-      const hoursLeft = timeDiff / (1000 * 60 * 60)
 
-      if (daysLeft < 0) {
+
+      // Calculate countdown and status - use date-only comparison for accuracy
+
+      // Compare dates properly - use date-only comparison for day calculations
+      const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      const dueOnlyDate = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate())
+      const daysDiff = Math.floor((dueOnlyDate - nowDate) / (1000 * 60 * 60 * 24))
+
+      // Use full datetime comparison instead of date-only comparison
+      const timeDiff = dueDate.getTime() - now.getTime()
+
+
+
+      if (timeDiff < 0) {
+        // Past due - calculate how long overdue
+        const hoursOverdue = Math.floor(Math.abs(timeDiff) / (1000 * 60 * 60))
+        const minutesOverdue = Math.floor((Math.abs(timeDiff) % (1000 * 60 * 60)) / (1000 * 60))
+
         enhanced.status = 'overdue'
-        enhanced.countdown = `${Math.abs(daysLeft)} days overdue`
-      } else if (daysLeft === 0) {
-        // All items due today go to "Due Today" regardless of specific time
-        enhanced.status = 'due_today'
-        if (hoursLeft < 0) {
-          enhanced.countdown = 'Due today (time passed)'
-        } else if (hoursLeft < 2) {
-          enhanced.countdown = `Due in ${Math.floor(hoursLeft * 60)} minutes!`
+        enhanced.priority = 'critical'
+        if (daysDiff < -1) {
+          // More than 1 day overdue
+          const daysOverdue = Math.abs(daysDiff)
+          enhanced.countdown = `${daysOverdue} days overdue`
+        } else if (hoursOverdue >= 24) {
+          // More than 24 hours overdue
+          const daysOverdue = Math.floor(hoursOverdue / 24)
+          enhanced.countdown = `${daysOverdue} days overdue`
+        } else if (hoursOverdue > 0) {
+          // Hours overdue
+          enhanced.countdown = `Overdue by ${hoursOverdue}h ${minutesOverdue}m`
         } else {
-          enhanced.countdown = 'Due today!'
+          // Minutes overdue
+          enhanced.countdown = `Overdue by ${minutesOverdue}m`
         }
-      } else if (daysLeft === 1) {
-        enhanced.status = 'due_tomorrow'
-        enhanced.countdown = 'Due tomorrow'
-      } else {
-        enhanced.status = 'upcoming'
-        enhanced.countdown = `${daysLeft} days left`
-      }
+      } else if (timeDiff < 60 * 60 * 1000) {
+          // Due within 1 hour
+          const minutesLeft = Math.floor(timeDiff / (1000 * 60))
+          enhanced.status = 'due_now'
+          enhanced.priority = 'critical'
+          enhanced.countdown = `Due in ${minutesLeft}m`
+        } else if (timeDiff < 3 * 60 * 60 * 1000) {
+          // Due within 3 hours
+          const hoursLeft = Math.floor(timeDiff / (1000 * 60 * 60))
+          const minutesLeft = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60))
+          enhanced.status = 'due_soon'
+          enhanced.priority = 'urgent'
+          enhanced.countdown = `Due in ${hoursLeft}h ${minutesLeft}m`
+        } else if (daysDiff === 0) {
+          // Due later today
+          const timeString = dueDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+          enhanced.status = 'due_today'
+          enhanced.priority = 'urgent'
+          enhanced.countdown = `Due today at ${timeString}`
+
+          // Debug problematic reminders
+          if (reminder.title && (reminder.title.includes('MAJOR') || reminder.title.includes('OPERATION RESEARCH') || reminder.title.includes('COMPUTER'))) {
+            console.log(`  Final countdown: "${enhanced.countdown}"`)
+            console.log(`  Time string: "${timeString}"`)
+          }
+        } else if (daysDiff === 1) {
+          enhanced.status = 'due_tomorrow'
+          enhanced.priority = 'high'
+          enhanced.countdown = 'Due tomorrow'
+        } else if (daysDiff <= 7) {
+          enhanced.status = 'upcoming'
+          enhanced.priority = 'medium'
+          enhanced.countdown = `${daysDiff} days left`
+        } else {
+          enhanced.status = 'upcoming'
+          enhanced.priority = 'low'
+          enhanced.countdown = `${daysDiff} days left`
+        }
     } else {
       enhanced.status = 'no_date'
+      enhanced.priority = 'low'
       enhanced.countdown = 'No due date'
       enhanced.formatted_due_date = null
     }
+
+
 
     return enhanced
   } catch (error) {
@@ -1136,6 +1544,7 @@ function displayReminders(reminders) {
           exam: "📚",
           assignment: "📝",
           project: "🎯",
+          lab: "🧪",
         }
 
         // Priority class for enhanced visual feedback
@@ -1144,6 +1553,7 @@ function displayReminders(reminders) {
         // Status icons for different countdown states
         const statusIcons = {
           'overdue': '🚨',
+          'overdue_today': '🚨',
           'due_now': '⏰',
           'due_today': '📅',
           'due_tomorrow': '📆',
@@ -1238,6 +1648,26 @@ function editReminder(reminderId) {
         if (reminder.due_date) {
           const date = new Date(reminder.due_date)
           document.getElementById("editReminderDate").value = date.toISOString().split("T")[0]
+
+          // Check for parsed time first, then fall back to due_date time
+          let timeToUse = null
+
+          // First check if we have a parsed time for this reminder
+          const parsedTime = getOrParseTime(reminder)
+          if (parsedTime) {
+            timeToUse = parsedTime
+            console.log(`Using parsed time for edit: ${parsedTime}`)
+          } else {
+            // Fall back to extracting time from due_date
+            const hours = date.getHours().toString().padStart(2, '0')
+            const minutes = date.getMinutes().toString().padStart(2, '0')
+            timeToUse = `${hours}:${minutes}`
+            console.log(`Using due_date time for edit: ${timeToUse}`)
+          }
+
+          setTimeFields('editReminder', timeToUse)
+        } else {
+          setTimeFields('editReminder', '')
         }
 
         editingReminderId = reminderId
@@ -1267,16 +1697,45 @@ function updateReminder() {
     const type = document.getElementById("editReminderType").value
     const dueDate = document.getElementById("editReminderDate").value
 
+    // Update hidden time field before getting its value
+    updateHiddenTimeField('editReminder')
+    const dueTime = document.getElementById("editReminderTime").value
+
     if (!title) {
       showNotification("Please enter a title for the reminder", "error")
       return
+    }
+
+    // Combine date and time if both are provided
+    let dueDateTimeISO = null
+    if (dueDate) {
+      let dateTime = new Date(dueDate)
+
+      if (dueTime) {
+        // Parse time and set it on the date
+        const [hours, minutes] = dueTime.split(':')
+        dateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0)
+      } else {
+        // Set default time based on reminder type
+        if (type === 'assignment' || type === 'project') {
+          dateTime.setHours(23, 59, 0, 0) // 11:59 PM for assignments/projects
+        } else if (type === 'exam') {
+          dateTime.setHours(9, 0, 0, 0) // 9:00 AM for exams
+        } else if (type === 'lab') {
+          dateTime.setHours(14, 0, 0, 0) // 2:00 PM for labs
+        } else {
+          dateTime.setHours(23, 59, 0, 0) // Default to end of day
+        }
+      }
+
+      dueDateTimeISO = dateTime.toISOString()
     }
 
     const reminderData = {
       title: title,
       description: description,
       type: type,
-      due_date: dueDate ? new Date(dueDate).toISOString() : null,
+      due_date: dueDateTimeISO,
     }
 
     console.log("Fetching /api/reminders (PUT) to update reminder:", editingReminderId)
@@ -1717,8 +2176,50 @@ function updateRemoveButtons() {
   }
 }
 
+function updateCGPAScale() {
+  try {
+    const scale = document.getElementById("cgpaScale")?.value || "10"
+    const scaleInfo = document.getElementById("scaleInfo")
+    const sgpaInputs = document.querySelectorAll(".sgpa-input")
+
+    // Update scale info text
+    let infoText = ""
+    let maxValue = "10"
+
+    switch(scale) {
+      case "10":
+        infoText = "Range: 0.0 - 10.0 | Excellent: 9.0+, Good: 7.0-8.9, Average: 6.0-6.9"
+        maxValue = "10"
+        break
+      case "5":
+        infoText = "Range: 1.0 - 5.0 | Excellent: 1.0-1.5, Good: 1.6-2.5, Average: 2.6-3.5 (Lower is better)"
+        maxValue = "5"
+        break
+      case "4":
+        infoText = "Range: 0.0 - 4.0 | Excellent: 3.7+, Good: 3.0-3.6, Average: 2.0-2.9"
+        maxValue = "4"
+        break
+    }
+
+    if (scaleInfo) {
+      scaleInfo.innerHTML = `<small>${infoText}</small>`
+    }
+
+    // Update all SGPA input max values
+    sgpaInputs.forEach(input => {
+      input.setAttribute('max', maxValue)
+      input.setAttribute('placeholder', `e.g., ${scale === '5' ? '1.5' : scale === '4' ? '3.5' : '8.5'}`)
+    })
+
+    console.log(`Updated CGPA scale to ${scale}-point system`)
+  } catch (error) {
+    console.error("Error updating CGPA scale:", error)
+  }
+}
+
 function calculateCGPA() {
   try {
+    const scale = document.getElementById("cgpaScale")?.value || "10"
     const semesterItems = document.querySelectorAll(".semester-item")
     const semesters = []
 
@@ -1747,7 +2248,7 @@ function calculateCGPA() {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ semesters }),
+      body: JSON.stringify({ semesters, scale: Number.parseFloat(scale) }),
     })
       .then((response) => {
         console.log("Response from /api/calculate_cgpa (POST):", response.status)
@@ -2025,10 +2526,301 @@ function resetAttendance() {
   }
 }
 
-// Holidays Functions
-function loadHolidays() {
+// Calendar Variables
+let currentDate = new Date()
+let calendarData = {
+  events: [],
+  holidays: []
+}
+let selectedDate = null
+let currentCalendarMode = 'calendar' // 'calendar' or 'holidays'
+
+// Calendar Functions
+function loadCalendar() {
   try {
-    console.log("Loading holidays from /api/holidays (GET)...")
+    console.log("Loading calendar data...")
+    console.log("Current date:", currentDate)
+    console.log("Calendar data:", calendarData)
+
+    // Initialize calendar mode (default to calendar mode)
+    switchCalendarMode('calendar')
+  } catch (error) {
+    console.error("Error in loadCalendar:", error)
+  }
+}
+
+function loadCalendarEvents() {
+  // Load events from API
+  return fetch('/api/calendar/events')
+    .then(response => {
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+      return response.json()
+    })
+    .then(events => {
+      calendarData.events = events || []
+      console.log("Loaded events:", calendarData.events)
+    })
+    .catch(error => {
+      console.error("Error loading events:", error)
+      calendarData.events = []
+    })
+}
+
+function loadCalendarHolidays() {
+  const year = currentDate.getFullYear()
+  return fetch(`/api/holidays?year=${year}`)
+    .then(response => {
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+      return response.json()
+    })
+    .then(holidays => {
+      calendarData.holidays = holidays || []
+      console.log("Loaded holidays:", calendarData.holidays)
+    })
+}
+
+function renderCalendar() {
+  try {
+    updateMonthYearDisplay()
+    generateCalendarGrid()
+  } catch (error) {
+    console.error("Error rendering calendar:", error)
+  }
+}
+
+function updateMonthYearDisplay() {
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ]
+
+  const monthYearElement = document.getElementById('currentMonthYear')
+  if (monthYearElement) {
+    monthYearElement.textContent = `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}`
+  }
+}
+
+function generateCalendarGrid() {
+  const grid = document.getElementById('calendarGrid')
+  if (!grid) {
+    console.error('Calendar grid element not found!')
+    return
+  }
+
+  console.log('Generating calendar grid...', 'Current date:', currentDate)
+
+  const year = currentDate.getFullYear()
+  const month = currentDate.getMonth()
+
+  // Get first day of month and number of days
+  const firstDay = new Date(year, month, 1)
+  const lastDay = new Date(year, month + 1, 0)
+  const daysInMonth = lastDay.getDate()
+  const startingDayOfWeek = firstDay.getDay()
+
+  // Get previous month's last days
+  const prevMonth = new Date(year, month, 0)
+  const daysInPrevMonth = prevMonth.getDate()
+
+  let html = ''
+  let dayCount = 1
+  let nextMonthDay = 1
+
+  // Calculate minimum weeks needed
+  const totalCells = startingDayOfWeek + daysInMonth
+  const weeksNeeded = Math.ceil(totalCells / 7)
+
+  // Generate only the necessary weeks (usually 5, sometimes 6)
+  for (let week = 0; week < weeksNeeded; week++) {
+    for (let day = 0; day < 7; day++) {
+      const cellIndex = week * 7 + day
+      let dateNumber, isCurrentMonth, fullDate
+
+      if (cellIndex < startingDayOfWeek) {
+        // Previous month days
+        dateNumber = daysInPrevMonth - startingDayOfWeek + cellIndex + 1
+        isCurrentMonth = false
+        fullDate = new Date(year, month - 1, dateNumber)
+      } else if (dayCount <= daysInMonth) {
+        // Current month days
+        dateNumber = dayCount
+        isCurrentMonth = true
+        fullDate = new Date(year, month, dateNumber)
+        dayCount++
+      } else {
+        // Next month days (only show a few to complete the week)
+        dateNumber = nextMonthDay
+        isCurrentMonth = false
+        fullDate = new Date(year, month + 1, dateNumber)
+        nextMonthDay++
+      }
+
+      const dateStr = fullDate.toISOString().split('T')[0]
+      const isToday = isDateToday(fullDate)
+      const dayEvents = getEventsForDate(dateStr)
+
+      let cssClasses = ['calendar-date']
+      if (!isCurrentMonth) cssClasses.push('other-month')
+      if (isToday) cssClasses.push('today')
+      if (dayEvents.length > 0) cssClasses.push('has-events')
+
+      // Create event indicator with color
+      let eventIndicator = ''
+      if (dayEvents.length > 0) {
+        const primaryEventColor = dayEvents[0].color || 'blue'
+        eventIndicator = `<div class="event-indicator event-indicator-${primaryEventColor}">${dayEvents.length}</div>`
+      }
+
+      html += `
+        <div class="${cssClasses.join(' ')}" onclick="selectDate('${dateStr}')" data-date="${dateStr}">
+          <div class="date-number">${dateNumber}</div>
+          ${eventIndicator}
+        </div>
+      `
+    }
+  }
+
+  grid.innerHTML = html
+  console.log(`Calendar grid generated with ${html.split('<div class="calendar-date"').length - 1} date cells`)
+}
+
+// Helper Functions
+function isDateToday(date) {
+  const today = new Date()
+  return date.getDate() === today.getDate() &&
+         date.getMonth() === today.getMonth() &&
+         date.getFullYear() === today.getFullYear()
+}
+
+// Event and holiday functions
+function getEventsForDate(dateStr) {
+  return calendarData.events.filter(event => event.date === dateStr)
+}
+
+function getHolidaysForDate(dateStr) {
+  return calendarData.holidays.filter(holiday => holiday.date === dateStr)
+}
+
+// Navigation Functions
+function previousMonth() {
+  currentDate.setMonth(currentDate.getMonth() - 1)
+  loadCalendarHolidays().then(() => renderCalendar())
+}
+
+function nextMonth() {
+  currentDate.setMonth(currentDate.getMonth() + 1)
+  loadCalendarHolidays().then(() => renderCalendar())
+}
+
+function goToToday() {
+  currentDate = new Date()
+  loadCalendarHolidays().then(() => renderCalendar())
+}
+
+// Date Selection
+function selectDate(dateStr) {
+  selectedDate = dateStr
+  showEventDetailsPanel(dateStr)
+}
+
+function showEventDetailsPanel(dateStr) {
+  const panel = document.getElementById('eventDetailsPanel')
+  const titleElement = document.getElementById('selectedDateTitle')
+  const eventsListElement = document.getElementById('eventsList')
+
+  if (!panel || !titleElement || !eventsListElement) return
+
+  const date = new Date(dateStr + 'T00:00:00')
+  const formattedDate = date.toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  })
+
+  titleElement.textContent = `Events for ${formattedDate}`
+
+  const dayEvents = getEventsForDate(dateStr)
+  let eventsHtml = ''
+
+  if (dayEvents.length > 0) {
+    dayEvents.forEach(event => {
+      const eventColor = event.color || 'blue'
+      eventsHtml += `
+        <div class="event-item event-color-${eventColor}">
+          <div class="event-header">
+            <div class="event-title">📅 ${event.title}</div>
+            <div class="event-actions">
+              <button onclick="editEvent('${event.id}')" class="btn-icon edit-btn" title="Edit Event">
+                <i class="fas fa-edit"></i>
+              </button>
+              <button onclick="deleteEvent('${event.id}')" class="btn-icon delete-btn" title="Delete Event">
+                <i class="fas fa-trash"></i>
+              </button>
+            </div>
+          </div>
+          ${event.time ? `<div class="event-time">⏰ ${event.time}</div>` : ''}
+          ${event.description ? `<div class="event-description">${event.description}</div>` : ''}
+          <div class="event-type event-type-${eventColor}">${event.type}</div>
+        </div>
+      `
+    })
+  } else {
+    eventsHtml = `
+      <div class="empty-state" style="padding: 20px; text-align: center;">
+        <i class="fas fa-calendar-plus empty-icon"></i>
+        <p>No events for this date</p>
+      </div>
+    `
+  }
+
+  eventsListElement.innerHTML = eventsHtml
+  panel.style.display = 'block'
+
+  // Scroll to panel
+  panel.scrollIntoView({ behavior: 'smooth' })
+}
+
+function closeEventPanel() {
+  const panel = document.getElementById('eventDetailsPanel')
+  if (panel) {
+    panel.style.display = 'none'
+  }
+  selectedDate = null
+}
+
+// Event panel functions removed
+
+// Mode Switching Functions
+function switchCalendarMode(mode) {
+  currentCalendarMode = mode
+
+  // Update button states
+  document.getElementById('calendarModeBtn').classList.toggle('active', mode === 'calendar')
+  document.getElementById('holidaysModeBtn').classList.toggle('active', mode === 'holidays')
+
+  // Show/hide content
+  document.getElementById('calendarMode').style.display = mode === 'calendar' ? 'block' : 'none'
+  document.getElementById('holidaysMode').style.display = mode === 'holidays' ? 'block' : 'none'
+
+  // Load appropriate data
+  if (mode === 'calendar') {
+    // Load events and holidays for calendar mode
+    Promise.all([loadCalendarEvents(), loadCalendarHolidays()]).then(() => {
+      renderCalendar()
+    }).catch(error => {
+      console.error("Error loading calendar data:", error)
+      showNotification("Error loading calendar data", "error")
+    })
+  } else if (mode === 'holidays') {
+    loadHolidaysList()
+  }
+}
+
+// Holidays List Functions
+function loadHolidaysList() {
+  try {
+    console.log("Loading holidays list...")
     const container = document.getElementById("holidaysContainer")
 
     if (!container) {
@@ -2036,14 +2828,23 @@ function loadHolidays() {
       return
     }
 
+    // Get filter values
+    const year = document.getElementById("holidayYear")?.value || new Date().getFullYear()
+    const type = document.getElementById("holidayType")?.value || ""
+
     container.innerHTML = `
             <div class="loading-state">
                 <i class="fas fa-spinner fa-spin"></i>
-                <p>Loading holidays...</p>
+                <p>Loading holidays for ${year}...</p>
             </div>
         `
 
-    fetch("/api/holidays")
+    // Build query parameters
+    const params = new URLSearchParams()
+    if (year) params.append('year', year)
+    if (type) params.append('type', type)
+
+    fetch(`/api/holidays?${params.toString()}`)
       .then((response) => {
         console.log("Response from /api/holidays (GET):", response.status)
         if (!response.ok) {
@@ -2053,7 +2854,7 @@ function loadHolidays() {
       })
       .then((holidays) => {
         console.log("Data from /api/holidays (GET):", holidays)
-        displayHolidays(holidays)
+        displayHolidaysList(holidays)
       })
       .catch((error) => {
         console.error("Error loading holidays:", error)
@@ -2066,11 +2867,11 @@ function loadHolidays() {
         showNotification("Error loading holidays. Check console for details.", "error")
       })
   } catch (error) {
-    console.error("Error in loadHolidays:", error)
+    console.error("Error in loadHolidaysList:", error)
   }
 }
 
-function displayHolidays(holidays) {
+function displayHolidaysList(holidays) {
   try {
     const container = document.getElementById("holidaysContainer")
     if (!container) return
@@ -2078,7 +2879,7 @@ function displayHolidays(holidays) {
     if (!holidays || holidays.length === 0) {
       container.innerHTML = `
               <div class="empty-state">
-                  <i class="fas fa-calendar empty-icon"></i>
+                  <i class="fas fa-star empty-icon"></i>
                   <p>No holidays found</p>
               </div>
           `
@@ -2097,7 +2898,7 @@ function displayHolidays(holidays) {
                           })}</div>
                           <div class="holiday-type ${holiday.type}">${holiday.type}</div>
                       </div>
-                      <div class="holiday-name">${holiday.name}</div>
+                      <div class="holiday-name">🎉 ${holiday.name}</div>
                       <div class="holiday-description">${holiday.description}</div>
                       ${
                         holiday.countdown
@@ -2113,6 +2914,248 @@ function displayHolidays(holidays) {
   } catch (error) {
     console.error("Error displaying holidays:", error)
   }
+}
+
+function displayCalendar(calendarData) {
+  try {
+    const container = document.getElementById("calendarContainer")
+    if (!container) return
+
+    if (!calendarData || calendarData.length === 0) {
+      container.innerHTML = `
+              <div class="empty-state">
+                  <i class="fas fa-calendar empty-icon"></i>
+                  <p>No events or holidays found</p>
+                  <button onclick="openAddEventModal()" class="btn btn-primary" style="margin-top: 16px;">
+                      <i class="fas fa-plus"></i> Add Your First Event
+                  </button>
+              </div>
+          `
+      return
+    }
+
+    const calendarHTML = calendarData
+      .map((item) => {
+        const isEvent = item.type === 'event'
+        const cardClass = isEvent ? 'event-card' : 'holiday-card'
+        const typeClass = isEvent ? item.event_type || 'personal' : item.type
+
+        return `
+                  <div class="${cardClass} ${item.status || ""} ${typeClass}">
+                      <div class="calendar-item-header">
+                          <div class="calendar-date">${new Date(item.date).toLocaleDateString("en-GB", {
+                            day: "numeric",
+                            month: "long",
+                            year: "numeric",
+                          })}</div>
+                          <div class="calendar-type ${typeClass}">
+                              ${isEvent ? '📅' : '🎉'} ${typeClass}
+                          </div>
+                          ${isEvent ? `
+                              <div class="event-actions">
+                                  <button onclick="editEvent('${item.id}')" class="action-btn edit" title="Edit Event">
+                                      <i class="fas fa-edit"></i>
+                                  </button>
+                                  <button onclick="deleteEvent('${item.id}')" class="action-btn delete" title="Delete Event">
+                                      <i class="fas fa-trash"></i>
+                                  </button>
+                              </div>
+                          ` : ''}
+                      </div>
+                      <div class="calendar-item-title">${item.name || item.title}</div>
+                      <div class="calendar-item-description">${item.description}</div>
+                      ${item.time ? `<div class="calendar-item-time"><i class="fas fa-clock"></i> ${item.time}</div>` : ''}
+                      ${
+                        item.countdown
+                          ? `<div class="calendar-countdown ${item.status}">${item.countdown}</div>`
+                          : ""
+                      }
+                  </div>
+              `
+      })
+      .join("")
+
+    container.innerHTML = calendarHTML
+  } catch (error) {
+    console.error("Error displaying calendar:", error)
+  }
+}
+
+// Event Management Functions - Removed
+
+// Event save functions removed
+
+// saveEvent function removed
+
+// Event test functions removed
+
+// Event Management Functions
+function openAddEventModal() {
+  const modal = document.getElementById('addEventModal')
+  const form = document.getElementById('addEventForm')
+
+  // Reset form and remove any edit data
+  form.reset()
+  form.removeAttribute('data-event-id')
+
+  // Set default date to today or selected date
+  const today = new Date().toISOString().split('T')[0]
+  document.getElementById('eventDate').value = selectedDate || today
+
+  // Set default values
+  document.getElementById('eventType').value = 'personal'
+  document.getElementById('eventColor').value = 'blue'
+
+  // Reset modal title and button text
+  document.getElementById('addEventModalLabel').textContent = '📅 Add Calendar Event'
+  document.querySelector('#addEventModal .btn-primary').innerHTML = '<i class="fas fa-save"></i> Save Event'
+
+  // Show modal
+  modal.style.display = 'flex'
+}
+
+function closeAddEventModal() {
+  const modal = document.getElementById('addEventModal')
+  modal.style.display = 'none'
+}
+
+function saveEvent() {
+  const form = document.getElementById('addEventForm')
+  const eventId = form.getAttribute('data-event-id')
+  const isEditing = !!eventId
+
+  const title = document.getElementById('eventTitle').value.trim()
+  const date = document.getElementById('eventDate').value
+  const time = document.getElementById('eventTime').value
+  const type = document.getElementById('eventType').value
+  const description = document.getElementById('eventDescription').value.trim()
+  const color = document.getElementById('eventColor').value
+
+  // Validation
+  if (!title) {
+    alert('Please enter an event title')
+    return
+  }
+
+  if (!date) {
+    alert('Please select a date')
+    return
+  }
+
+  // Create event data
+  const eventData = {
+    title,
+    date,
+    time: time || null,
+    type,
+    description: description || null,
+    color
+  }
+
+  // Determine URL and method
+  const url = isEditing ? `/api/calendar/events/${eventId}` : '/api/calendar/events'
+  const method = isEditing ? 'PUT' : 'POST'
+
+  // Save to API
+  fetch(url, {
+    method: method,
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(eventData)
+  })
+  .then(response => {
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+    return response.json()
+  })
+  .then(data => {
+    console.log('Event saved:', data)
+    showNotification(isEditing ? 'Event updated successfully!' : 'Event added successfully!', 'success')
+
+    // Reset form and modal
+    form.removeAttribute('data-event-id')
+    document.getElementById('addEventModalLabel').textContent = '📅 Add Calendar Event'
+    document.querySelector('#addEventModal .btn-primary').innerHTML = '<i class="fas fa-save"></i> Save Event'
+
+    // Close modal
+    closeAddEventModal()
+
+    // Reload calendar
+    loadCalendarEvents().then(() => {
+      renderCalendar()
+      // If event panel is open for this date, refresh it
+      if (selectedDate === date) {
+        showEventDetailsPanel(date)
+      }
+    })
+  })
+  .catch(error => {
+    console.error('Error saving event:', error)
+    showNotification('Error saving event. Please try again.', 'error')
+  })
+}
+
+function editEvent(eventId) {
+  // Find the event
+  const event = calendarData.events.find(e => e.id === eventId)
+  if (!event) {
+    showNotification('Event not found', 'error')
+    return
+  }
+
+  // Populate the form with event data
+  document.getElementById('eventTitle').value = event.title
+  document.getElementById('eventDate').value = event.date
+  document.getElementById('eventTime').value = event.time || ''
+  document.getElementById('eventType').value = event.type || 'personal'
+  document.getElementById('eventDescription').value = event.description || ''
+  document.getElementById('eventColor').value = event.color || 'blue'
+
+  // Store the event ID for updating
+  document.getElementById('addEventForm').setAttribute('data-event-id', eventId)
+
+  // Change modal title and button text
+  document.getElementById('addEventModalLabel').textContent = '✏️ Edit Event'
+  document.querySelector('#addEventModal .btn-primary').innerHTML = '<i class="fas fa-save"></i> Update Event'
+
+  // Show modal
+  const modal = document.getElementById('addEventModal')
+  modal.style.display = 'flex'
+}
+
+function deleteEvent(eventId) {
+  if (!confirm('Are you sure you want to delete this event?')) {
+    return
+  }
+
+  fetch(`/api/calendar/events/${eventId}`, {
+    method: 'DELETE'
+  })
+  .then(response => {
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+    return response.json()
+  })
+  .then(data => {
+    console.log('Event deleted:', data)
+    showNotification('Event deleted successfully!', 'success')
+
+    // Reload calendar data and re-render
+    loadCalendarEvents().then(() => {
+      renderCalendar()
+      // If event panel is open, refresh it
+      if (selectedDate) {
+        showEventDetailsPanel(selectedDate)
+      }
+    })
+  })
+  .catch(error => {
+    console.error('Error deleting event:', error)
+    showNotification('Error deleting event. Please try again.', 'error')
+  })
 }
 
 // History Functions
@@ -2200,6 +3243,9 @@ function displayHistory(data) {
                           <div class="history-card cgpa">
                               <div class="history-header">
                                   <div class="history-date">${new Date(record.timestamp).toLocaleDateString()}</div>
+                                  <button class="delete-history-btn" onclick="deleteCGPARecord('${record.timestamp}')" title="Delete this record">
+                                      <i class="fas fa-trash"></i>
+                                  </button>
                               </div>
                               <div class="history-value cgpa">${result.cgpa}</div>
                               <div class="history-details">
@@ -2232,6 +3278,9 @@ function displayHistory(data) {
                           <div class="history-card attendance">
                               <div class="history-header">
                                   <div class="history-date">${new Date(record.timestamp).toLocaleDateString()}</div>
+                                  <button class="delete-history-btn" onclick="deleteAttendanceRecord('${record.timestamp}')" title="Delete this record">
+                                      <i class="fas fa-trash"></i>
+                                  </button>
                               </div>
                               <div class="history-value attendance">${result.current_percent}%</div>
                               <div class="history-details">
@@ -2251,6 +3300,86 @@ function displayHistory(data) {
   }
 }
 
+// Delete CGPA record function
+function deleteCGPARecord(timestamp) {
+  try {
+    if (confirm("Are you sure you want to delete this CGPA calculation?")) {
+      console.log("Deleting CGPA record with timestamp:", timestamp)
+
+      fetch('/api/delete_cgpa_record', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ timestamp: timestamp })
+      })
+        .then(response => {
+          console.log("Response from /api/delete_cgpa_record (DELETE):", response.status)
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`)
+          }
+          return response.json()
+        })
+        .then(data => {
+          console.log("Data from /api/delete_cgpa_record (DELETE):", data)
+          if (data.error) {
+            showNotification(data.error, "error")
+          } else {
+            showNotification("CGPA record deleted successfully!", "success")
+            loadHistory() // Reload the history to reflect changes
+          }
+        })
+        .catch(error => {
+          console.error("Error deleting CGPA record:", error)
+          showNotification("Error deleting CGPA record. Please try again.", "error")
+        })
+    }
+  } catch (error) {
+    console.error("Error in deleteCGPARecord:", error)
+    showNotification("Error deleting CGPA record", "error")
+  }
+}
+
+// Delete attendance record function
+function deleteAttendanceRecord(timestamp) {
+  try {
+    if (confirm("Are you sure you want to delete this attendance record?")) {
+      console.log("Deleting attendance record with timestamp:", timestamp)
+
+      fetch('/api/delete_attendance_record', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ timestamp: timestamp })
+      })
+        .then(response => {
+          console.log("Response from /api/delete_attendance_record (DELETE):", response.status)
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`)
+          }
+          return response.json()
+        })
+        .then(data => {
+          console.log("Data from /api/delete_attendance_record (DELETE):", data)
+          if (data.error) {
+            showNotification(data.error, "error")
+          } else {
+            showNotification("Attendance record deleted successfully!", "success")
+            loadHistory() // Reload the history to reflect changes
+          }
+        })
+        .catch(error => {
+          console.error("Error deleting attendance record:", error)
+          showNotification("Error deleting attendance record. Please try again.", "error")
+        })
+    }
+  } catch (error) {
+    console.error("Error in deleteAttendanceRecord:", error)
+    showNotification("Error deleting attendance record", "error")
+  }
+}
+
 // Test function to test tab switching
 function testTabs() {
   console.log("Testing all tabs...")
@@ -2263,3 +3392,284 @@ function testTabs() {
     }, index * 1000) // 1 second delay between each tab switch
   })
 }
+
+// Initialize CGPA scale on page load
+document.addEventListener("DOMContentLoaded", function () {
+  // Initialize CGPA scale selector
+  setTimeout(() => {
+    updateCGPAScale()
+  }, 100)
+
+  // Add test reminders button for debugging (remove in production)
+  const username = localStorage.getItem('username')
+  if (username === 'hasselx') {
+    const testButton = document.createElement('button')
+    testButton.textContent = 'Add Test Reminders'
+    testButton.onclick = createTestReminders
+    testButton.style.position = 'fixed'
+    testButton.style.top = '10px'
+    testButton.style.right = '10px'
+    testButton.style.zIndex = '9999'
+    testButton.style.backgroundColor = '#ff6b6b'
+    testButton.style.color = 'white'
+    testButton.style.border = 'none'
+    testButton.style.padding = '10px'
+    testButton.style.borderRadius = '5px'
+    document.body.appendChild(testButton)
+  }
+})
+
+// Test function to create problematic reminders
+function createTestReminders() {
+  const testReminders = [
+    {
+      title: 'MAJOR',
+      description: 'Major project online review on this sunday 11:00 am',
+      type: 'project',
+      due_date: '2025-07-13' // Today (Sunday)
+    },
+    {
+      title: 'OPERATION RESEARCH',
+      description: 'OPERATION RESEARCH EXAM ON THIS SUNDAY 2 PM',
+      type: 'exam',
+      due_date: '2025-07-13' // Today (Sunday)
+    },
+    {
+      title: 'COMPUTER',
+      description: 'COMPUTER ASSIGNMENT ON THIS SUNDAY 9 AM',
+      type: 'assignment',
+      due_date: '2025-07-13' // Today (Sunday)
+    }
+  ]
+
+  testReminders.forEach((reminder, index) => {
+    setTimeout(() => {
+      // Set form values
+      document.getElementById("reminderTitle").value = reminder.title
+      document.getElementById("reminderDescription").value = reminder.description
+      document.getElementById("reminderType").value = reminder.type
+      document.getElementById("reminderDate").value = reminder.due_date
+
+      // Save the reminder
+      saveReminder()
+    }, index * 1000) // Delay each reminder by 1 second
+  })
+}
+
+// Modern Flip Clock Functionality
+let previousDigits = { hour1: '', hour2: '', minute1: '', minute2: '', second1: '', second2: '' }
+
+function updateModernFlipClock() {
+  try {
+    const now = new Date()
+
+    // Get user's timezone
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+
+    // Format time in 12-hour format
+    const timeString = now.toLocaleTimeString('en-US', {
+      hour12: true,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    })
+
+    // Parse the time string to get individual components
+    const [time, period] = timeString.split(' ')
+    const [hours, minutes, seconds] = time.split(':')
+
+    // Split each time component into individual digits
+    const hour1 = hours[0]
+    const hour2 = hours[1]
+    const minute1 = minutes[0]
+    const minute2 = minutes[1]
+    const second1 = seconds[0]
+    const second2 = seconds[1]
+
+    // Update each digit with animation
+    updateFlipDigit('hour1', hour1, previousDigits.hour1)
+    updateFlipDigit('hour2', hour2, previousDigits.hour2)
+    updateFlipDigit('minute1', minute1, previousDigits.minute1)
+    updateFlipDigit('minute2', minute2, previousDigits.minute2)
+    updateFlipDigit('second1', second1, previousDigits.second1)
+    updateFlipDigit('second2', second2, previousDigits.second2)
+
+    // Update AM/PM indicator
+    const amPmElement = document.getElementById('amPmIndicator')
+    if (amPmElement) {
+      amPmElement.textContent = period
+    }
+
+    // Update timezone and date display
+    const timezoneElement = document.getElementById('timezoneInfo')
+    const dateElement = document.getElementById('dateInfo')
+
+    if (timezoneElement) {
+      // Get a more readable timezone name
+      const timeZoneName = timeZone.split('/').pop().replace('_', ' ')
+      timezoneElement.textContent = `${timeZoneName} • ${period}`
+    }
+
+    if (dateElement) {
+      const dateString = now.toLocaleDateString('en-US', {
+        weekday: 'short',
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      })
+      dateElement.textContent = dateString
+    }
+
+    // Store current digits for next comparison
+    previousDigits = { hour1, hour2, minute1, minute2, second1, second2 }
+
+  } catch (error) {
+    console.error('Error updating modern flip clock:', error)
+  }
+}
+
+function updateFlipDigit(digitId, newValue, oldValue) {
+  try {
+    const digit = document.getElementById(digitId)
+    if (!digit) return
+
+    const front = digit.querySelector('.flip-digit-front')
+    const back = digit.querySelector('.flip-digit-back')
+
+    if (!front || !back) return
+
+    // Only animate if value has changed
+    if (newValue !== oldValue && oldValue !== '') {
+      // Set the new value on the back
+      back.textContent = newValue
+
+      // Add flipping class to trigger animation
+      digit.classList.add('flipping')
+
+      // After animation completes, update front and remove class
+      setTimeout(() => {
+        front.textContent = newValue
+        digit.classList.remove('flipping')
+      }, 300) // Half of the 0.6s transition
+    } else {
+      // Initial load or no change - just set the value
+      front.textContent = newValue
+      back.textContent = newValue
+    }
+  } catch (error) {
+    console.error('Error updating flip digit:', error)
+  }
+}
+
+// Theme Toggle Functionality
+function toggleTheme() {
+  try {
+    const currentTheme = document.documentElement.getAttribute('data-theme')
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark'
+
+    document.documentElement.setAttribute('data-theme', newTheme)
+
+    // Update theme icon
+    const themeIcon = document.getElementById('themeIcon')
+    if (themeIcon) {
+      themeIcon.className = newTheme === 'dark' ? 'fas fa-sun' : 'fas fa-moon'
+    }
+
+    // Save theme preference to localStorage
+    localStorage.setItem('theme', newTheme)
+
+    // Show notification
+    showNotification(`Switched to ${newTheme} theme`, 'success')
+
+  } catch (error) {
+    console.error('Error toggling theme:', error)
+  }
+}
+
+function initializeTheme() {
+  try {
+    // Get saved theme or default to light
+    const savedTheme = localStorage.getItem('theme') || 'light'
+
+    document.documentElement.setAttribute('data-theme', savedTheme)
+
+    // Update theme icon
+    const themeIcon = document.getElementById('themeIcon')
+    if (themeIcon) {
+      themeIcon.className = savedTheme === 'dark' ? 'fas fa-sun' : 'fas fa-moon'
+    }
+
+  } catch (error) {
+    console.error('Error initializing theme:', error)
+  }
+}
+
+// Initialize everything when page loads
+document.addEventListener('DOMContentLoaded', function() {
+  // Initialize theme
+  initializeTheme()
+
+  // Start the modern flip clock
+  updateModernFlipClock()
+
+  // Update every second
+  setInterval(updateModernFlipClock, 1000)
+})
+
+// Filter Functions
+function applyFilters() {
+  try {
+    const categoryFilter = document.getElementById('categoryFilter').value
+    const priorityFilter = document.getElementById('priorityFilter').value
+
+    console.log('Applying filters:', { categoryFilter, priorityFilter })
+
+    let filteredReminders = [...allReminders]
+
+    // Apply category filter
+    if (categoryFilter !== 'all') {
+      filteredReminders = filteredReminders.filter(reminder =>
+        reminder.type === categoryFilter
+      )
+    }
+
+    // Apply priority filter
+    if (priorityFilter !== 'all') {
+      filteredReminders = filteredReminders.filter(reminder => {
+        // First enhance the reminder to get status using the same function as display
+        const enhanced = enhanceReminderData(reminder)
+
+        console.log(`Filter check for ${reminder.title}:`, {
+          priority: enhanced.priority,
+          status: enhanced.status,
+          filterValue: priorityFilter
+        })
+
+        if (priorityFilter === 'critical' || priorityFilter === 'urgent') {
+          return enhanced.priority === priorityFilter
+        } else {
+          return enhanced.status === priorityFilter
+        }
+      })
+    }
+
+    console.log('Filtered reminders:', filteredReminders.length, 'out of', allReminders.length)
+    displayReminders(filteredReminders)
+
+  } catch (error) {
+    console.error('Error applying filters:', error)
+  }
+}
+
+function clearAllFilters() {
+  try {
+    document.getElementById('categoryFilter').value = 'all'
+    document.getElementById('priorityFilter').value = 'all'
+    displayReminders(allReminders)
+    console.log('Filters cleared, showing all reminders')
+  } catch (error) {
+    console.error('Error clearing filters:', error)
+  }
+}
+
+
