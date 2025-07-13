@@ -1117,6 +1117,60 @@ body {
   color: white;
 }
 
+/* Fresh Exam Countdown Styles */
+.exam-countdown {
+  padding: 12px 16px;
+  border-radius: 12px;
+  margin-bottom: 12px;
+  transition: all 0.3s ease;
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Dynamic color classes - applied via JavaScript */
+.exam-countdown.countdown-days {
+  background-color: #28a745;
+  color: white;
+  border-left: 5px solid #1e7e34;
+}
+
+.exam-countdown.countdown-hours {
+  background-color: #ffc107;
+  color: #212529;
+  border-left: 5px solid #e0a800;
+}
+
+.exam-countdown.countdown-minutes {
+  background-color: #dc3545;
+  color: white;
+  border-left: 5px solid #c82333;
+}
+
+.countdown-content {
+  text-align: center;
+}
+
+.countdown-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 4px;
+  opacity: 0.9;
+}
+
+.countdown-subject {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.countdown-timer {
+  font-size: 0.9rem;
+  font-weight: 600;
+  opacity: 0.95;
+}
+
 .holiday-card {
   background: white;
   border: 1px solid #e9ecef;

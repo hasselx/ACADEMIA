@@ -396,13 +396,15 @@
           background: var(--card-bg);
           border: 1px solid var(--border-color);
           color: var(--text-primary);
-          padding: 12px;
-          border-radius: 12px;
+          padding: 10px;
+          border-radius: 50%;
           cursor: pointer;
           transition: all 0.3s ease;
           display: flex;
           align-items: center;
           justify-content: center;
+          width: 40px;
+          height: 40px;
           box-shadow: 0 4px 12px var(--shadow-light);
           backdrop-filter: blur(20px);
         }
@@ -452,19 +454,79 @@
           box-shadow: 0 8px 25px rgba(40, 167, 69, 0.4);
         }
 
+        /* Header Stacking Styles */
+        .clock-countdown-stack {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .theme-logout-stack {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 8px;
+        }
+
+        /* Exam Countdown Styles */
+        .exam-countdown {
+          background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+          color: white;
+          padding: 10px 16px;
+          border-radius: 12px;
+          box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
+          animation: pulse 2s infinite;
+          min-width: 180px;
+          text-align: center;
+        }
+
+        .countdown-content {
+          text-align: center;
+        }
+
+        .countdown-title {
+          font-size: 0.7rem;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 1px;
+          opacity: 0.9;
+          margin-bottom: 2px;
+        }
+
+        .countdown-subject {
+          font-size: 0.85rem;
+          font-weight: 700;
+          margin-bottom: 2px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .countdown-timer {
+          font-size: 0.75rem;
+          font-weight: 500;
+          opacity: 0.95;
+        }
+
+        @keyframes pulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.02); }
+        }
+
         .logout-btn {
           background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
           color: white;
-          padding: 14px 24px;
+          padding: 10px 16px;
           border: none;
-          border-radius: 16px;
+          border-radius: 12px;
           text-decoration: none;
           font-weight: 600;
-          font-size: 0.95rem;
+          font-size: 0.85rem;
           transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
           display: flex;
           align-items: center;
-          gap: 10px;
+          gap: 8px;
           position: relative;
           overflow: hidden;
           box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
@@ -1641,6 +1703,114 @@
           margin: 0 auto;
           padding: 20px;
           min-height: 100vh;
+          transform: none !important;
+          direction: ltr !important;
+        }
+
+        /* Global fix for text mirroring in timetable */
+        .timetable-container,
+        .timetable-container *,
+        .timetable-header,
+        .timetable-header *,
+        .timetable-toggle,
+        .timetable-toggle *,
+        .toggle-btn,
+        .toggle-btn * {
+          transform: none !important;
+          -webkit-transform: none !important;
+          -moz-transform: none !important;
+          -ms-transform: none !important;
+          direction: ltr !important;
+          unicode-bidi: normal !important;
+          text-align: inherit !important;
+          writing-mode: horizontal-tb !important;
+          text-orientation: mixed !important;
+        }
+
+        /* Specific fix for button text */
+        .toggle-btn {
+          -webkit-font-feature-settings: normal !important;
+          font-feature-settings: normal !important;
+          -webkit-text-orientation: mixed !important;
+          text-orientation: mixed !important;
+          filter: none !important;
+          -webkit-filter: none !important;
+        }
+
+        /* Additional fix for any CSS filters causing mirroring */
+        #timetable, #timetable * {
+          filter: none !important;
+          -webkit-filter: none !important;
+          transform: none !important;
+          -webkit-transform: none !important;
+        }
+
+        /* Mobile Responsive for Header Stacks */
+        @media (max-width: 768px) {
+          .header {
+            padding: 15px 20px;
+            flex-direction: column;
+            gap: 15px;
+          }
+
+          .header-left {
+            text-align: center;
+          }
+
+          .header-right {
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 15px;
+          }
+
+          .clock-container {
+            order: -1;
+          }
+
+          .clock-countdown-stack {
+            gap: 6px;
+          }
+
+          .theme-logout-stack {
+            gap: 6px;
+          }
+
+          .exam-countdown {
+            min-width: 160px;
+            padding: 8px 12px;
+          }
+
+          .theme-toggle-btn {
+            width: 36px;
+            height: 36px;
+            padding: 8px;
+          }
+
+          .logout-btn {
+            padding: 8px 12px;
+            font-size: 0.8rem;
+            gap: 6px;
+          }
+
+          /* Exam action buttons mobile responsive */
+          .exam-actions {
+            gap: 6px;
+          }
+
+          .edit-btn, .delete-btn {
+            min-width: 32px;
+            height: 32px;
+            padding: 6px 8px;
+            font-size: 0.8rem;
+          }
+
+          .exam-item {
+            padding: 16px;
+          }
+
+          .exam-subject {
+            font-size: 1.1rem;
+          }
         }
 
         .timetable-header {
@@ -1704,6 +1874,203 @@
           display: flex;
           align-items: center;
           gap: 12px;
+          transform: none !important;
+          direction: ltr !important;
+        }
+
+        /* Timetable Toggle Styles */
+        .timetable-toggle {
+          display: flex;
+          background: #f8f9fa;
+          border-radius: 12px;
+          padding: 4px;
+          gap: 2px;
+          transform: none;
+          direction: ltr;
+        }
+
+        .toggle-btn {
+          padding: 8px 16px;
+          border: none;
+          border-radius: 8px;
+          background: transparent;
+          color: #666;
+          font-size: 0.85rem;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          transform: none;
+          direction: ltr;
+          text-align: left;
+        }
+
+        .toggle-btn:hover {
+          background: #e9ecef;
+          color: #495057;
+        }
+
+        .toggle-btn.active {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+        }
+
+        .toggle-btn i {
+          font-size: 0.8rem;
+          transform: none;
+        }
+
+        /* Fix any text mirroring issues */
+        .toggle-btn, .toggle-btn * {
+          transform: none !important;
+          -webkit-transform: none !important;
+          -moz-transform: none !important;
+          -ms-transform: none !important;
+          direction: ltr !important;
+          unicode-bidi: normal !important;
+        }
+
+        /* Exam Schedule Styles */
+        .exam-schedule-list {
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+        }
+
+        .exam-item {
+          background: white;
+          border-radius: 12px;
+          padding: 20px;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+          border-left: 4px solid #667eea;
+          transition: all 0.3s ease;
+        }
+
+        .exam-item:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+        }
+
+        .exam-item:hover .exam-actions {
+          opacity: 1;
+        }
+
+        .exam-item.upcoming-exam {
+          border-left-color: #28a745;
+          background: linear-gradient(135deg, #f8fff9 0%, #ffffff 100%);
+        }
+
+        .exam-item.past-exam {
+          border-left-color: #6c757d;
+          background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+          opacity: 0.7;
+        }
+
+        .exam-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 12px;
+        }
+
+        .exam-subject {
+          font-size: 1.2rem;
+          font-weight: 700;
+          color: #2c3e50;
+        }
+
+        .exam-actions {
+          display: flex;
+          gap: 8px;
+          opacity: 0.7;
+          transition: opacity 0.3s ease;
+        }
+
+        .edit-btn, .delete-btn {
+          background: rgba(255, 255, 255, 0.9);
+          border: none;
+          border-radius: 8px;
+          padding: 8px 10px;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          font-size: 0.9rem;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          min-width: 36px;
+          height: 36px;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .edit-btn {
+          color: #667eea;
+        }
+
+        .edit-btn:hover {
+          background: #667eea;
+          color: white;
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .delete-btn {
+          color: #dc3545;
+        }
+
+        .delete-btn:hover {
+          background: #dc3545;
+          color: white;
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+        }
+
+        .exam-details {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+
+        .exam-date, .exam-time, .exam-location {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          color: #666;
+          font-size: 0.9rem;
+        }
+
+        .exam-countdown {
+          display: inline-block;
+          padding: 6px 12px;
+          border-radius: 20px;
+          font-size: 0.8rem;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+
+        .exam-countdown.upcoming {
+          background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+          color: white;
+        }
+
+        .exam-countdown.past {
+          background: #6c757d;
+          color: white;
+        }
+
+        @media (max-width: 768px) {
+          .exam-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 12px;
+          }
+
+          .exam-actions {
+            align-self: flex-end;
+          }
         }
 
         .add-btn {
@@ -2970,6 +3337,330 @@
           color: #d63031;
         }
 
+        /* CGPA Analysis Modal Styles */
+        .modal-xl {
+          max-width: 95vw;
+          width: 95vw;
+        }
+
+        .cgpa-summary-cards {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+          gap: 20px;
+          margin-bottom: 30px;
+        }
+
+        .summary-card {
+          background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+          border-radius: 12px;
+          padding: 20px;
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          border-left: 4px solid #6c5ce7;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .summary-card.primary {
+          border-left-color: #6c5ce7;
+          background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
+        }
+
+        .summary-card.success {
+          border-left-color: #00b894;
+          background: linear-gradient(135deg, #e8f5e8 0%, #f1f8e9 100%);
+        }
+
+        .summary-card.info {
+          border-left-color: #0984e3;
+          background: linear-gradient(135deg, #e3f2fd 0%, #f8f9fa 100%);
+        }
+
+        .summary-icon {
+          font-size: 2rem;
+          opacity: 0.8;
+        }
+
+        .summary-value {
+          font-size: 2rem;
+          font-weight: 700;
+          color: #2d3436;
+          line-height: 1;
+        }
+
+        .summary-label {
+          font-size: 0.9rem;
+          color: #636e72;
+          margin-top: 4px;
+        }
+
+        .summary-scale {
+          font-size: 0.8rem;
+          color: #74b9ff;
+          font-weight: 500;
+        }
+
+        .scale-conversions {
+          margin-bottom: 30px;
+        }
+
+        .scale-conversions h6 {
+          color: #2d3436;
+          margin-bottom: 16px;
+          font-weight: 600;
+        }
+
+        .conversion-cards {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          gap: 16px;
+        }
+
+        .conversion-card {
+          background: white;
+          border-radius: 8px;
+          padding: 16px;
+          text-align: center;
+          border: 2px solid #e9ecef;
+          transition: all 0.3s ease;
+        }
+
+        .conversion-card:hover {
+          border-color: #6c5ce7;
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(108, 92, 231, 0.15);
+        }
+
+        .conversion-value {
+          font-size: 1.5rem;
+          font-weight: 700;
+          color: #6c5ce7;
+          margin-bottom: 8px;
+        }
+
+        .conversion-label {
+          font-size: 0.9rem;
+          color: #2d3436;
+          font-weight: 600;
+          margin-bottom: 4px;
+        }
+
+        .conversion-formula {
+          font-size: 0.75rem;
+          color: #636e72;
+          font-style: italic;
+        }
+
+        .charts-section {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 30px;
+          margin-bottom: 30px;
+        }
+
+        .chart-container {
+          background: white;
+          border-radius: 12px;
+          padding: 20px;
+          border: 1px solid #e9ecef;
+        }
+
+        .chart-container h6 {
+          color: #2d3436;
+          margin-bottom: 16px;
+          font-weight: 600;
+        }
+
+        .semester-details {
+          background: white;
+          border-radius: 12px;
+          padding: 20px;
+          border: 1px solid #e9ecef;
+        }
+
+        .semester-details h6 {
+          color: #2d3436;
+          margin-bottom: 16px;
+          font-weight: 600;
+        }
+
+        .table-responsive {
+          border-radius: 8px;
+          overflow: hidden;
+        }
+
+        .table {
+          margin-bottom: 0;
+        }
+
+        .table th {
+          background: #f8f9fa;
+          color: #2d3436;
+          font-weight: 600;
+          border: none;
+          padding: 12px;
+        }
+
+        .table td {
+          padding: 12px;
+          border-color: #e9ecef;
+        }
+
+        .performance-badge {
+          display: inline-block;
+          padding: 4px 8px;
+          border-radius: 12px;
+          font-size: 0.75rem;
+          font-weight: 600;
+          text-transform: uppercase;
+        }
+
+        .performance-excellent {
+          background: #d1f2eb;
+          color: #00b894;
+        }
+
+        .performance-good {
+          background: #e3f2fd;
+          color: #0984e3;
+        }
+
+        .performance-average {
+          background: #fff3e0;
+          color: #ff9800;
+        }
+
+        .performance-poor {
+          background: #ffebee;
+          color: #f44336;
+        }
+
+        /* Clickable History Cards */
+        .history-card.clickable {
+          cursor: pointer;
+          transition: all 0.3s ease;
+          position: relative;
+          overflow: hidden;
+        }
+
+        .history-card.clickable:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+          border-color: #6c5ce7;
+        }
+
+        .history-card.clickable::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: -100%;
+          width: 100%;
+          height: 100%;
+          background: linear-gradient(90deg, transparent, rgba(108, 92, 231, 0.1), transparent);
+          transition: left 0.5s ease;
+        }
+
+        .history-card.clickable:hover::before {
+          left: 100%;
+        }
+
+        .click-hint {
+          margin-top: 8px;
+          padding: 6px 8px;
+          background: linear-gradient(135deg, #6c5ce7 0%, #a29bfe 100%);
+          color: white;
+          border-radius: 6px;
+          font-size: 0.75rem;
+          text-align: center;
+          opacity: 0;
+          transform: translateY(10px);
+          transition: all 0.3s ease;
+        }
+
+        .history-card.clickable:hover .click-hint {
+          opacity: 1;
+          transform: translateY(0);
+        }
+
+        .click-hint i {
+          margin-right: 4px;
+        }
+
+        /* Semester Header */
+        .semester-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 16px;
+        }
+
+        .semester-header h6 {
+          margin: 0;
+        }
+
+        /* Add Semester Modal Styles */
+        .semester-preview {
+          margin-top: 20px;
+          padding: 16px;
+          background: #f8f9fa;
+          border-radius: 8px;
+          border-left: 4px solid #6c5ce7;
+        }
+
+        .semester-preview h6 {
+          margin-bottom: 12px;
+          color: #2d3436;
+        }
+
+        .preview-card {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 12px;
+        }
+
+        .preview-item {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 8px 12px;
+          background: white;
+          border-radius: 6px;
+          border: 1px solid #e9ecef;
+        }
+
+        .preview-label {
+          font-weight: 600;
+          color: #636e72;
+          font-size: 0.9rem;
+        }
+
+        .preview-value {
+          font-weight: 700;
+          color: #2d3436;
+        }
+
+        /* Chart container improvements */
+        .chart-container canvas {
+          max-height: 300px;
+        }
+
+        /* Mobile responsive for semester header */
+        @media (max-width: 768px) {
+          .semester-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 12px;
+          }
+
+          .semester-header .btn {
+            width: 100%;
+          }
+
+          .preview-card {
+            grid-template-columns: 1fr;
+          }
+        }
+
         @keyframes modernFloat {
           0%, 100% { transform: translateY(0px) rotate(0deg); }
           33% { transform: translateY(-10px) rotate(1deg); }
@@ -3100,22 +3791,243 @@
           }
         }
 
+        /* Enhanced Mobile Styles for Better UX */
+        @media (max-width: 768px) {
+          /* Navigation improvements */
+          .nav-tabs {
+            flex-wrap: wrap;
+            justify-content: center;
+            border-bottom: none;
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 4px;
+            margin-bottom: 16px;
+          }
+
+          .nav-tabs .nav-link {
+            font-size: 0.8rem;
+            padding: 8px 12px;
+            margin: 2px;
+            border-radius: 8px;
+            border: none;
+            min-width: auto;
+            flex: 1;
+            text-align: center;
+          }
+
+          .nav-tabs .nav-link.active {
+            background: var(--primary-gradient);
+            color: white;
+            border: none;
+          }
+
+          /* Form improvements for mobile */
+          .form-control {
+            font-size: 16px; /* Prevents zoom on iOS */
+            padding: 12px;
+            border-radius: 8px;
+          }
+
+          .btn {
+            padding: 12px 16px;
+            font-size: 0.9rem;
+            min-height: 44px; /* Touch-friendly */
+            border-radius: 8px;
+          }
+
+          /* Modal improvements for mobile */
+          .modal-dialog {
+            margin: 8px;
+            max-width: calc(100vw - 16px);
+          }
+
+          .modal-content {
+            border-radius: 12px;
+          }
+
+          .modal-header {
+            padding: 16px;
+            border-bottom: 1px solid #e9ecef;
+          }
+
+          .modal-body {
+            padding: 16px;
+            max-height: calc(100vh - 200px);
+            overflow-y: auto;
+          }
+
+          .modal-footer {
+            padding: 16px;
+            flex-direction: column;
+            gap: 8px;
+            border-top: 1px solid #e9ecef;
+          }
+
+          .modal-footer .btn {
+            width: 100%;
+            margin: 0;
+          }
+
+          /* Reminder cards mobile optimization */
+          .reminder-card {
+            margin-bottom: 12px;
+            padding: 12px;
+            border-radius: 12px;
+          }
+
+          .reminder-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 8px;
+          }
+
+          .reminder-title {
+            font-size: 1rem;
+            line-height: 1.3;
+          }
+
+          .reminder-actions {
+            width: 100%;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 8px;
+          }
+
+          .reminder-actions .btn {
+            font-size: 0.8rem;
+            padding: 6px 12px;
+            min-height: 36px;
+          }
+
+          /* Calendar mobile improvements */
+          .calendar-date {
+            min-height: 60px;
+            padding: 6px;
+            font-size: 0.9rem;
+          }
+
+          .date-number {
+            font-size: 14px;
+          }
+
+          .event-indicator {
+            min-width: 16px;
+            height: 16px;
+            font-size: 10px;
+            bottom: 2px;
+            right: 2px;
+          }
+
+          /* Event details panel mobile */
+          .event-item {
+            padding: 10px;
+            margin-bottom: 8px;
+          }
+
+          .event-title {
+            font-size: 0.9rem;
+          }
+
+          .event-actions .btn-icon {
+            padding: 6px;
+            font-size: 11px;
+          }
+
+          /* CGPA Analysis Modal Mobile */
+          .modal-xl {
+            max-width: 100vw;
+            width: 100vw;
+            margin: 0;
+          }
+
+          .cgpa-summary-cards {
+            grid-template-columns: 1fr;
+            gap: 12px;
+          }
+
+          .summary-card {
+            padding: 16px;
+            gap: 12px;
+          }
+
+          .summary-icon {
+            font-size: 1.5rem;
+          }
+
+          .summary-value {
+            font-size: 1.5rem;
+          }
+
+          .conversion-cards {
+            grid-template-columns: 1fr;
+            gap: 12px;
+          }
+
+          .charts-section {
+            grid-template-columns: 1fr;
+            gap: 20px;
+          }
+
+          .chart-container {
+            padding: 16px;
+          }
+
+          .semester-details {
+            padding: 16px;
+          }
+
+          .table th,
+          .table td {
+            padding: 8px 4px;
+            font-size: 0.8rem;
+          }
+        }
+
         @media (max-width: 480px) {
           .dashboard-title {
             font-size: 1.3rem;
           }
 
           .tab-content {
-            padding: 16px;
+            padding: 12px;
           }
 
           .card-content {
-            padding: 16px;
+            padding: 12px;
           }
 
           .cgpa-value,
           .attendance-percentage {
-            font-size: 2rem;
+            font-size: 1.8rem;
+          }
+
+          /* Ultra-small screen optimizations */
+          .modern-flip-clock {
+            transform: scale(0.8);
+          }
+
+          .nav-tabs .nav-link {
+            font-size: 0.75rem;
+            padding: 6px 8px;
+          }
+
+          .reminder-card {
+            padding: 10px;
+          }
+
+          .calendar-date {
+            min-height: 50px;
+            padding: 4px;
+          }
+
+          .date-number {
+            font-size: 12px;
+          }
+
+          .event-indicator {
+            min-width: 14px;
+            height: 14px;
+            font-size: 9px;
           }
 
           .modal-content {
@@ -3411,17 +4323,29 @@
                         </div>
                     </div>
 
-                    <!-- Theme Toggle -->
-                    <button class="theme-toggle-btn" onclick="toggleTheme()" type="button" title="Toggle Dark/Light Theme">
-                        <i class="fas fa-moon" id="themeIcon"></i>
-                    </button>
+                    <!-- Clock and Countdown Stack -->
+                    <div class="clock-countdown-stack">
+                        <!-- Exam Countdown Display -->
+                        <div id="examCountdown" class="exam-countdown" style="display: none;">
+                            <div class="countdown-content">
+                                <div class="countdown-title">Next Exam</div>
+                                <div class="countdown-subject" id="countdownSubject"></div>
+                                <div class="countdown-timer" id="countdownTimer"></div>
+                            </div>
+                        </div>
+                    </div>
 
-                    <button class="timetable-btn" onclick="showTimetable()" type="button">
-                        <i class="fas fa-calendar"></i> My Timetable
-                    </button>
-                    <a href="{{ url_for('logout') }}" class="logout-btn">
-                        <i class="fas fa-sign-out-alt"></i> Logout
-                    </a>
+                    <!-- Theme and Logout Stack -->
+                    <div class="theme-logout-stack">
+                        <!-- Theme Toggle -->
+                        <button class="theme-toggle-btn" onclick="toggleTheme()" type="button" title="Toggle Dark/Light Theme">
+                            <i class="fas fa-moon" id="themeIcon"></i>
+                        </button>
+
+                        <a href="{{ url_for('logout') }}" class="logout-btn">
+                            <i class="fas fa-sign-out-alt"></i> Logout
+                        </a>
+                    </div>
                 </div>
             </div>
         </header>
@@ -4022,7 +4946,16 @@ or
                                 </div>
                             </div>
                             <div class="timetable-header-right">
-                                <button class="add-btn" onclick="openAddModal()" type="button">
+                                <!-- Timetable Type Toggle -->
+                                <div class="timetable-toggle">
+                                    <button class="toggle-btn active" id="normalTimetableBtn" onclick="switchTimetableType('normal')" type="button">
+                                        <i class="fas fa-calendar-week"></i> Normal
+                                    </button>
+                                    <button class="toggle-btn" id="examTimetableBtn" onclick="switchTimetableType('exam')" type="button">
+                                        <i class="fas fa-graduation-cap"></i> Exam
+                                    </button>
+                                </div>
+                                <button class="add-btn" onclick="openAddModal()" type="button" id="addTimetableBtn">
                                     <i class="fas fa-plus"></i>
                                 </button>
                             </div>
@@ -4115,6 +5048,71 @@ or
                         <button type="button" class="btn btn-outline" onclick="closeAddModal()">Cancel</button>
                         <button type="submit" class="btn btn-primary">
                             <i class="fas fa-save"></i> Save Class
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit Exam Modal -->
+    <div id="examModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="examModalTitle">Add New Exam</h3>
+                <button class="modal-close" onclick="closeExamModal()" type="button">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="examForm">
+                    <div class="form-group">
+                        <label for="examSubject">Subject</label>
+                        <input type="text" id="examSubject" name="subject" required placeholder="Enter subject name">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="examDate">Exam Date</label>
+                        <input type="date" id="examDate" name="date" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="examDay">Day</label>
+                        <select id="examDay" name="day" required>
+                            <option value="">Select Day</option>
+                            <option value="Monday">Monday</option>
+                            <option value="Tuesday">Tuesday</option>
+                            <option value="Wednesday">Wednesday</option>
+                            <option value="Thursday">Thursday</option>
+                            <option value="Friday">Friday</option>
+                            <option value="Saturday">Saturday</option>
+                            <option value="Sunday">Sunday</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="examTime">Time</label>
+                        <input type="time" id="examTime" name="time" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="examSession">Session</label>
+                        <select id="examSession" name="session" required>
+                            <option value="">Select Session</option>
+                            <option value="FN">Forenoon (FN)</option>
+                            <option value="AN">Afternoon (AN)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="examLocation">Location (Optional)</label>
+                        <input type="text" id="examLocation" name="location" placeholder="Exam hall/room">
+                    </div>
+
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-outline" onclick="closeExamModal()">Cancel</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Save Exam
                         </button>
                     </div>
                 </form>
@@ -4286,12 +5284,211 @@ or
         {% endif %}
     {% endwith %}
 
+    <!-- CGPA Analysis Modal -->
+    <div id="cgpaAnalysisModal" class="modal">
+        <div class="modal-content modal-xl">
+            <div class="modal-header">
+                <h3 id="cgpaAnalysisModalLabel">📊 CGPA Analysis & Trends</h3>
+                <button class="modal-close" onclick="closeCGPAAnalysisModal()" type="button">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <!-- CGPA Summary Cards -->
+                <div class="cgpa-summary-cards">
+                    <div class="summary-card primary">
+                        <div class="summary-icon">🎯</div>
+                        <div class="summary-content">
+                            <div class="summary-value" id="analysisCGPA">-</div>
+                            <div class="summary-label">Overall CGPA</div>
+                            <div class="summary-scale" id="analysisScale">10.0 Scale</div>
+                        </div>
+                    </div>
+                    <div class="summary-card success">
+                        <div class="summary-icon">📚</div>
+                        <div class="summary-content">
+                            <div class="summary-value" id="analysisTotalCredits">-</div>
+                            <div class="summary-label">Total Credits</div>
+                            <div class="summary-scale" id="analysisSemesters">- Semesters</div>
+                        </div>
+                    </div>
+                    <div class="summary-card info">
+                        <div class="summary-icon">📈</div>
+                        <div class="summary-content">
+                            <div class="summary-value" id="analysisAvgSGPA">-</div>
+                            <div class="summary-label">Average SGPA</div>
+                            <div class="summary-scale" id="analysisGradePoints">- Grade Points</div>
+                        </div>
+                    </div>
+                </div>
 
+                <!-- Scale Conversions -->
+                <div class="scale-conversions">
+                    <h6><i class="fas fa-exchange-alt"></i> Scale Conversions</h6>
+                    <div class="conversion-cards">
+                        <div class="conversion-card">
+                            <div class="conversion-value" id="analysis4Scale">-</div>
+                            <div class="conversion-label">4.0 Scale (US)</div>
+                            <div class="conversion-formula">Formula: (CGPA - 5) × 4 / 5</div>
+                        </div>
+                        <div class="conversion-card">
+                            <div class="conversion-value" id="analysis5Scale">-</div>
+                            <div class="conversion-label">5.0 Scale</div>
+                            <div class="conversion-formula">Formula: CGPA / 2</div>
+                        </div>
+                        <div class="conversion-card">
+                            <div class="conversion-value" id="analysisPercentage">-</div>
+                            <div class="conversion-label">Percentage</div>
+                            <div class="conversion-formula">Formula: (CGPA - 0.5) × 10</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Section -->
+                <div class="charts-section">
+                    <div class="chart-container">
+                        <h6><i class="fas fa-chart-bar"></i> SGPA vs Credits by Semester</h6>
+                        <canvas id="sgpaCreditsChart" width="400" height="200"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <h6><i class="fas fa-chart-line"></i> SGPA Trend Over Semesters</h6>
+                        <canvas id="sgpaTrendChart" width="400" height="200"></canvas>
+                        <div class="chart-legend" style="margin-top: 15px; text-align: center; font-size: 0.85rem;">
+                            <div style="margin-bottom: 10px; font-weight: bold; color: #2d3436;">Performance Gradient</div>
+
+                            <!-- Gradient Bar -->
+                            <div style="margin: 10px auto; width: 200px; height: 8px; border-radius: 4px; background: linear-gradient(to right, #e74c3c 0%, #e7a53c 33%, #ffff96 66%, #00b894 100%); box-shadow: 0 2px 4px rgba(0,0,0,0.1);"></div>
+
+                            <!-- Labels -->
+                            <div style="display: flex; justify-content: space-between; width: 200px; margin: 5px auto; font-size: 0.75rem;">
+                                <span style="color: #e74c3c; font-weight: bold;">Low</span>
+                                <span style="color: #00b894; font-weight: bold;">High</span>
+                            </div>
+
+                            <!-- Performance Categories -->
+                            <div style="display: flex; justify-content: center; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 10px;">
+                                <span style="color: #e74c3c; font-size: 0.8rem;">● Needs Improvement</span>
+                                <span style="color: #e7a53c; font-size: 0.8rem;">● Below Average</span>
+                                <span style="color: #d4b000; font-size: 0.8rem; font-weight: bold;">● Good</span>
+                                <span style="color: #00b894; font-size: 0.8rem;">● Excellent</span>
+                            </div>
+
+                            <div style="margin-top: 8px; font-size: 0.7rem; color: #636e72; font-style: italic;">
+                                Colors automatically adjust based on your SGPA range
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Semester Details Table -->
+                <div class="semester-details">
+                    <div class="semester-header">
+                        <h6><i class="fas fa-table"></i> Semester-wise Breakdown</h6>
+                        <button type="button" class="btn btn-success btn-sm" onclick="openAddSemesterModal()">
+                            <i class="fas fa-plus"></i> Add New Semester
+                        </button>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Semester</th>
+                                    <th>SGPA</th>
+                                    <th>Credits</th>
+                                    <th>Grade Points</th>
+                                    <th>Performance</th>
+                                </tr>
+                            </thead>
+                            <tbody id="semesterDetailsTable">
+                                <!-- Semester data will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeCGPAAnalysisModal()">Close</button>
+                <button type="button" class="btn btn-primary" onclick="exportCGPAAnalysis()">
+                    <i class="fas fa-download"></i> Export Analysis
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add New Semester Modal -->
+    <div id="addSemesterModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="addSemesterModalLabel">📚 Add New Semester Result</h3>
+                <button class="modal-close" onclick="closeAddSemesterModal()" type="button">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="addSemesterForm">
+                    <div class="form-group">
+                        <label for="newSemesterName">Semester Name</label>
+                        <input type="text" id="newSemesterName" placeholder="e.g., Semester 5" required>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="newSemesterSGPA">SGPA</label>
+                            <input type="number" id="newSemesterSGPA" step="0.01" min="0" max="10" placeholder="e.g., 8.5" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="newSemesterCredits">Credits</label>
+                            <input type="number" id="newSemesterCredits" step="1" min="1" placeholder="e.g., 20" required>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="newSemesterScale">Scale</label>
+                        <select id="newSemesterScale">
+                            <option value="10">10.0 Scale</option>
+                            <option value="5">5.0 Scale</option>
+                            <option value="4">4.0 Scale</option>
+                        </select>
+                    </div>
+
+                    <div class="semester-preview" id="semesterPreview" style="display: none;">
+                        <h6>Preview:</h6>
+                        <div class="preview-card">
+                            <div class="preview-item">
+                                <span class="preview-label">Semester:</span>
+                                <span class="preview-value" id="previewSemester">-</span>
+                            </div>
+                            <div class="preview-item">
+                                <span class="preview-label">SGPA:</span>
+                                <span class="preview-value" id="previewSGPA">-</span>
+                            </div>
+                            <div class="preview-item">
+                                <span class="preview-label">Credits:</span>
+                                <span class="preview-value" id="previewCredits">-</span>
+                            </div>
+                            <div class="preview-item">
+                                <span class="preview-label">Grade Points:</span>
+                                <span class="preview-value" id="previewGradePoints">-</span>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeAddSemesterModal()">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="addNewSemester()">
+                    <i class="fas fa-plus"></i> Add Semester
+                </button>
+            </div>
+        </div>
+    </div>
 
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Chart.js for charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Load external JavaScript file -->
-    <script src="{{ url_for('static', filename='js/script.js') }}?v=3.5"></script>
+    <script src="{{ url_for('static', filename='js/script.js') }}?v=6.2"></script>
 
 
 </body>

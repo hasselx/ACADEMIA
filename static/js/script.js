@@ -97,9 +97,13 @@ let semesterCount = 1
 let currentTab = "reminders" // Initialize with default active tab
 let currentDayIndex = 0
 let currentTimetable = {}
+let currentExamTimetable = { exams: [] }
+let currentTimetableType = 'normal' // 'normal' or 'exam'
 let editingIndex = -1
+let editingExamIndex = -1
 let editingReminderId = null
 let allReminders = [] // Store all reminders for filtering
+let examCountdownInterval = null
 
 // Time format conversion functions
 function convertTo24Hour(hour, minute, ampm) {
@@ -1817,10 +1821,156 @@ function closeEditReminderModal() {
   }
 }
 
+// Exam Countdown Functions - Fresh Implementation
+function loadExamCountdown() {
+  fetch('/api/next-exam')
+    .then(response => response.json())
+    .then(data => {
+      const countdownElement = document.getElementById('examCountdown')
+      const subjectElement = document.getElementById('countdownSubject')
+      const timerElement = document.getElementById('countdownTimer')
+
+      if (data.next_exam) {
+        const exam = data.next_exam
+        subjectElement.textContent = exam.subject
+
+        // Format countdown text
+        let countdownText = ''
+        if (exam.days_left > 0) {
+          countdownText = `${exam.days_left}d ${exam.hours_left}h ${exam.minutes_left}m`
+        } else if (exam.hours_left > 0) {
+          countdownText = `${exam.hours_left}h ${exam.minutes_left}m`
+        } else {
+          countdownText = `${exam.minutes_left}m`
+        }
+        timerElement.textContent = countdownText
+
+        // Apply dynamic colors based on time remaining
+        applyExamCountdownColor(countdownElement, exam.days_left, exam.hours_left, exam.minutes_left)
+
+        countdownElement.style.display = 'block'
+      } else {
+        countdownElement.style.display = 'none'
+      }
+    })
+    .catch(error => {
+      console.error('Error loading exam countdown:', error)
+      document.getElementById('examCountdown').style.display = 'none'
+    })
+}
+
+// Fresh color application function
+function applyExamCountdownColor(element, daysLeft, hoursLeft, minutesLeft) {
+  // Remove any existing color classes and reset all background properties
+  element.classList.remove('countdown-days', 'countdown-hours', 'countdown-minutes')
+  element.style.background = 'none'
+  element.style.backgroundImage = 'none'
+  element.style.backgroundGradient = 'none'
+
+  // Determine color based on time remaining
+  if (daysLeft > 0) {
+    // Green for days remaining
+    element.classList.add('countdown-days')
+    element.style.setProperty('background-color', '#28a745', 'important')
+    element.style.setProperty('background', '#28a745', 'important')
+    element.style.setProperty('color', 'white', 'important')
+    element.style.setProperty('border-left', '5px solid #1e7e34', 'important')
+  } else if (hoursLeft > 0) {
+    // Yellow for hours remaining
+    element.classList.add('countdown-hours')
+    element.style.setProperty('background-color', '#ffc107', 'important')
+    element.style.setProperty('background', '#ffc107', 'important')
+    element.style.setProperty('color', '#212529', 'important')
+    element.style.setProperty('border-left', '5px solid #e0a800', 'important')
+  } else {
+    // Red for minutes remaining
+    element.classList.add('countdown-minutes')
+    element.style.setProperty('background-color', '#dc3545', 'important')
+    element.style.setProperty('background', '#dc3545', 'important')
+    element.style.setProperty('color', 'white', 'important')
+    element.style.setProperty('border-left', '5px solid #c82333', 'important')
+  }
+
+  console.log(`🎨 Applied color: ${daysLeft}d ${hoursLeft}h ${minutesLeft}m -> ${element.style.backgroundColor}`)
+}
+
 // Timetable Functions
 function showTimetable() {
   // This function is called by switchTab, so it just needs to load data
   loadTimetable()
+  loadExamTimetable()
+
+  // Initialize with normal timetable by default
+  currentTimetableType = 'normal'
+  updateTimetableToggleButtons()
+
+  // Show normal timetable initially
+  setTimeout(() => {
+    displaySchedule()
+  }, 500)
+
+  // Check for upcoming exams and prioritize exam timetable
+  setTimeout(() => {
+    checkExamPriority()
+  }, 1500)
+}
+
+function updateTimetableToggleButtons() {
+  const normalBtn = document.getElementById('normalTimetableBtn')
+  const examBtn = document.getElementById('examTimetableBtn')
+
+  if (normalBtn && examBtn) {
+    normalBtn.classList.toggle('active', currentTimetableType === 'normal')
+    examBtn.classList.toggle('active', currentTimetableType === 'exam')
+  }
+}
+
+function checkExamPriority() {
+  if (!currentExamTimetable.exams || currentExamTimetable.exams.length === 0) {
+    return
+  }
+
+  const now = new Date()
+  const upcomingExams = currentExamTimetable.exams.filter(exam => {
+    const examDate = new Date(exam.date)
+    return examDate >= now
+  })
+
+  // If there are upcoming exams, prioritize exam timetable
+  if (upcomingExams.length > 0) {
+    switchTimetableType('exam')
+  }
+}
+
+function switchTimetableType(type) {
+  console.log('switchTimetableType called with type:', type)
+  currentTimetableType = type
+
+  // Update button states
+  updateTimetableToggleButtons()
+
+  // Update add button text and functionality
+  const addBtn = document.getElementById('addTimetableBtn')
+  if (addBtn) {
+    if (type === 'exam') {
+      addBtn.setAttribute('onclick', 'openExamModal()')
+      addBtn.innerHTML = '<i class="fas fa-plus"></i>'
+      addBtn.title = 'Add Exam'
+    } else {
+      addBtn.setAttribute('onclick', 'openAddModal()')
+      addBtn.innerHTML = '<i class="fas fa-plus"></i>'
+      addBtn.title = 'Add Class'
+    }
+  }
+
+  // Load appropriate timetable
+  if (type === 'exam') {
+    console.log('Switching to exam mode, loading exam timetable first')
+    loadExamTimetable()
+  } else {
+    console.log('Switching to normal mode')
+    displaySchedule()
+  }
 }
 
 // Day navigation functions
@@ -1830,7 +1980,13 @@ function changeDay(direction) {
   if (currentDayIndex > 6) currentDayIndex = 0
 
   updateDayDisplay()
-  displaySchedule()
+
+  // Display appropriate schedule based on current type
+  if (currentTimetableType === 'exam') {
+    displayExamSchedule()
+  } else {
+    displaySchedule()
+  }
 }
 
 function updateDayDisplay() {
@@ -1865,7 +2021,10 @@ function loadTimetable() {
   if (cachedTimetable && !isDataStale(10)) { // Use cache if less than 10 minutes old
     console.log("Loading timetable from LocalStorage cache")
     currentTimetable = cachedTimetable.timetable || {}
-    displaySchedule()
+    // Only display if we're in normal mode
+    if (currentTimetableType === 'normal') {
+      displaySchedule()
+    }
     return
   }
 
@@ -1892,7 +2051,10 @@ function loadTimetable() {
       currentTimetable = data.timetable || {}
       // Backup to LocalStorage
       backupTimetableToLocalStorage(data)
-      displaySchedule()
+      // Only display if we're in normal mode
+      if (currentTimetableType === 'normal') {
+        displaySchedule()
+      }
     })
     .catch((error) => {
       console.error("Error loading timetable:", error)
@@ -1902,7 +2064,10 @@ function loadTimetable() {
       if (cachedTimetable) {
         console.log("Loading timetable from LocalStorage fallback")
         currentTimetable = cachedTimetable.timetable || {}
-        displaySchedule()
+        // Only display if we're in normal mode
+        if (currentTimetableType === 'normal') {
+          displaySchedule()
+        }
         showNotification("Loaded timetable from offline cache", "warning")
       } else {
         if (container) {
@@ -1919,6 +2084,12 @@ function loadTimetable() {
 }
 
 function displaySchedule() {
+  // If we're in exam mode, don't display normal schedule
+  if (currentTimetableType === 'exam') {
+    displayExamSchedule()
+    return
+  }
+
   const container = document.getElementById("scheduleContainer")
   if (!container) return
 
@@ -2034,7 +2205,10 @@ function deleteClass(index) {
 
     currentTimetable[currentDay].splice(index, 1)
     saveTimetable()
-    displaySchedule()
+    // Only display normal schedule if we're in normal mode
+    if (currentTimetableType === 'normal') {
+      displaySchedule()
+    }
     showNotification("Class deleted successfully", "success")
   }
 }
@@ -2076,7 +2250,10 @@ function saveClass() {
   }
 
   saveTimetable()
-  displaySchedule()
+  // Only display normal schedule if we're in normal mode
+  if (currentTimetableType === 'normal') {
+    displaySchedule()
+  }
   closeAddModal()
 }
 
@@ -2108,6 +2285,279 @@ function saveTimetable() {
       console.error("Error saving timetable:", error)
       showNotification("Error saving timetable", "error")
     })
+}
+
+// Exam Timetable Functions
+function loadExamTimetable() {
+  console.log("Loading exam timetable from /api/exam-timetable (GET)...")
+
+  fetch("/api/exam-timetable")
+    .then((response) => {
+      console.log("Response from /api/exam-timetable (GET):", response.status)
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      return response.json()
+    })
+    .then((data) => {
+      console.log("Data from /api/exam-timetable (GET):", data)
+      currentExamTimetable = data.exam_timetable || { exams: [] }
+      if (currentTimetableType === 'exam') {
+        displayExamSchedule()
+      }
+    })
+    .catch((error) => {
+      console.error("Error loading exam timetable:", error)
+      currentExamTimetable = { exams: [] }
+      if (currentTimetableType === 'exam') {
+        displayExamSchedule()
+      }
+    })
+}
+
+function displayExamSchedule() {
+  console.log('displayExamSchedule called')
+  const container = document.getElementById("scheduleContainer")
+  if (!container) {
+    console.log('Container not found')
+    return
+  }
+
+  const exams = currentExamTimetable.exams || []
+  console.log('Current exam timetable:', currentExamTimetable)
+  console.log('Exams array:', exams)
+  console.log('Number of exams:', exams.length)
+
+  if (exams.length === 0) {
+    console.log('No exams found, showing empty state')
+    container.innerHTML = `
+      <div class="empty-schedule">
+        <i class="fas fa-graduation-cap empty-icon"></i>
+        <p>No exams scheduled</p>
+        <button class="btn btn-primary" onclick="openExamModal()" type="button">
+          <i class="fas fa-plus"></i> Add Exam
+        </button>
+      </div>
+    `
+    return
+  }
+
+  // Sort exams by date
+  const sortedExams = exams.sort((a, b) => new Date(a.date) - new Date(b.date))
+
+  let html = '<div class="exam-schedule-list">'
+
+  sortedExams.forEach((exam, index) => {
+    // Combine date and time for accurate countdown
+    const examDate = new Date(exam.date)
+
+    // Parse the time (e.g., "09:30") and add it to the date
+    if (exam.time) {
+      const [hours, minutes] = exam.time.split(':').map(Number)
+      examDate.setHours(hours, minutes, 0, 0)
+    }
+
+    const now = new Date()
+    const isUpcoming = examDate >= now
+    const isPast = examDate < now
+
+    // Calculate countdown
+    let countdownText = ''
+    if (isUpcoming) {
+      const timeDiff = examDate - now
+      const days = Math.floor(timeDiff / (1000 * 60 * 60 * 24))
+      const hours = Math.floor((timeDiff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
+      const minutes = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60))
+
+      if (days > 0) {
+        countdownText = `${days}d ${hours}h left`
+      } else if (hours > 0) {
+        countdownText = `${hours}h ${minutes}m left`
+      } else if (minutes > 0) {
+        countdownText = `${minutes}m left`
+      } else {
+        countdownText = 'Starting now!'
+      }
+    }
+
+    html += `
+      <div class="exam-item ${isPast ? 'past-exam' : isUpcoming ? 'upcoming-exam' : ''}">
+        <div class="exam-header">
+          <div class="exam-subject">${exam.subject}</div>
+          <div class="exam-actions">
+            <button class="edit-btn" onclick="editExam(${index})" type="button" title="Edit Exam">
+              <i class="fas fa-edit"></i>
+            </button>
+            <button class="delete-btn" onclick="deleteExam(${index})" type="button" title="Delete Exam">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
+        </div>
+        <div class="exam-details">
+          <div class="exam-date">
+            <i class="fas fa-calendar"></i> ${examDate.toLocaleDateString('en-US', {
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric'
+            })}
+          </div>
+          <div class="exam-time">
+            <i class="fas fa-clock"></i> ${exam.time} (${exam.session})
+          </div>
+          ${exam.location ? `<div class="exam-location"><i class="fas fa-map-marker-alt"></i> ${exam.location}</div>` : ''}
+          ${countdownText ? `<div class="exam-countdown ${isPast ? 'past' : 'upcoming'}">${countdownText}</div>` : ''}
+        </div>
+      </div>
+    `
+  })
+
+  html += '</div>'
+  container.innerHTML = html
+}
+
+function saveExamTimetable() {
+  console.log("Fetching /api/exam-timetable (POST) to save exam timetable...")
+  fetch("/api/exam-timetable", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      exam_timetable: currentExamTimetable,
+    }),
+  })
+    .then((response) => {
+      console.log("Response from /api/exam-timetable (POST):", response.status)
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      return response.json()
+    })
+    .then((data) => {
+      console.log("Data from /api/exam-timetable (POST):", data)
+      if (data.error) {
+        showNotification(data.error, "error")
+      } else {
+        // Refresh countdown after saving
+        loadExamCountdown()
+      }
+    })
+    .catch((error) => {
+      console.error("Error saving exam timetable:", error)
+      showNotification("Error saving exam timetable", "error")
+    })
+}
+
+// Exam Modal Functions
+function openExamModal() {
+  editingExamIndex = -1
+  document.getElementById('examModalTitle').textContent = 'Add New Exam'
+  document.getElementById('examForm').reset()
+  document.getElementById('examModal').style.display = 'flex'
+}
+
+function closeExamModal() {
+  document.getElementById('examModal').style.display = 'none'
+  editingExamIndex = -1
+}
+
+function editExam(index) {
+  const exam = currentExamTimetable.exams[index]
+  if (!exam) return
+
+  editingExamIndex = index
+  document.getElementById('examModalTitle').textContent = 'Edit Exam'
+
+  // Fill form with exam data
+  document.getElementById('examSubject').value = exam.subject
+  document.getElementById('examDate').value = exam.date
+  document.getElementById('examDay').value = exam.day
+  document.getElementById('examTime').value = exam.time
+  document.getElementById('examSession').value = exam.session
+  document.getElementById('examLocation').value = exam.location || ''
+
+  document.getElementById('examModal').style.display = 'flex'
+}
+
+function deleteExam(index) {
+  const exam = currentExamTimetable.exams[index]
+  if (!exam) return
+
+  const examInfo = `${exam.subject} on ${new Date(exam.date).toLocaleDateString()}`
+  if (confirm(`Are you sure you want to delete the exam:\n${examInfo}?`)) {
+    currentExamTimetable.exams.splice(index, 1)
+    saveExamTimetable()
+    displayExamSchedule()
+    showNotification("Exam deleted successfully", "success")
+  }
+}
+
+// Handle exam form submission and date change
+document.addEventListener('DOMContentLoaded', function() {
+  const examForm = document.getElementById('examForm')
+  if (examForm) {
+    examForm.addEventListener('submit', function(e) {
+      e.preventDefault()
+      saveExam()
+    })
+  }
+
+  // Auto-fill day when date is selected
+  const examDateInput = document.getElementById('examDate')
+  if (examDateInput) {
+    examDateInput.addEventListener('change', function() {
+      const selectedDate = new Date(this.value)
+      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+      const dayName = dayNames[selectedDate.getDay()]
+      document.getElementById('examDay').value = dayName
+    })
+  }
+})
+
+function saveExam() {
+  const formData = {
+    subject: document.getElementById('examSubject').value,
+    date: document.getElementById('examDate').value,
+    day: document.getElementById('examDay').value,
+    time: document.getElementById('examTime').value,
+    session: document.getElementById('examSession').value,
+    location: document.getElementById('examLocation').value
+  }
+
+  // Validate required fields
+  if (!formData.subject || !formData.date || !formData.day || !formData.time || !formData.session) {
+    showNotification("Please fill in all required fields", "error")
+    return
+  }
+
+  // Validate date is not in the past
+  const examDate = new Date(formData.date)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  if (examDate < today) {
+    showNotification("Exam date cannot be in the past", "error")
+    return
+  }
+
+  if (!currentExamTimetable.exams) {
+    currentExamTimetable.exams = []
+  }
+
+  if (editingExamIndex >= 0) {
+    // Edit existing exam
+    currentExamTimetable.exams[editingExamIndex] = formData
+    showNotification("Exam updated successfully", "success")
+  } else {
+    // Add new exam
+    currentExamTimetable.exams.push(formData)
+    showNotification("Exam added successfully", "success")
+  }
+
+  saveExamTimetable()
+  displayExamSchedule()
+  closeExamModal()
 }
 
 // CGPA Functions
@@ -3240,18 +3690,21 @@ function displayHistory(data) {
           .map((record) => {
             const result = record.result
             return `
-                          <div class="history-card cgpa">
+                          <div class="history-card cgpa clickable" onclick="openCGPAAnalysis('${record.timestamp}')">
                               <div class="history-header">
                                   <div class="history-date">${new Date(record.timestamp).toLocaleDateString()}</div>
-                                  <button class="delete-history-btn" onclick="deleteCGPARecord('${record.timestamp}')" title="Delete this record">
+                                  <button class="delete-history-btn" onclick="event.stopPropagation(); deleteCGPARecord('${record.timestamp}')" title="Delete this record">
                                       <i class="fas fa-trash"></i>
                                   </button>
                               </div>
                               <div class="history-value cgpa">${result.cgpa}</div>
                               <div class="history-details">
-                                  CGPA: ${result.cgpa}/10.0<br>
+                                  CGPA: ${result.cgpa}/${result.scale || 10}.0<br>
                                   Total Credits: ${result.total_credits}<br>
-                                  4.0 Scale: ${result.gpa_4_scale}
+                                  4.0 Scale: ${result.gpa_4_scale || 'N/A'}
+                              </div>
+                              <div class="click-hint">
+                                  <i class="fas fa-chart-line"></i> Click for detailed analysis
                               </div>
                           </div>
                       `
@@ -3604,8 +4057,10 @@ function initializeTheme() {
   }
 }
 
-// Initialize everything when page loads
-document.addEventListener('DOMContentLoaded', function() {
+// Initialize app function that can be called multiple times safely
+function initializeApp() {
+  console.log('🚀 Initializing app...')
+
   // Initialize theme
   initializeTheme()
 
@@ -3613,8 +4068,32 @@ document.addEventListener('DOMContentLoaded', function() {
   updateModernFlipClock()
 
   // Update every second
-  setInterval(updateModernFlipClock, 1000)
+  if (!window.clockInterval) {
+    window.clockInterval = setInterval(updateModernFlipClock, 1000)
+  }
+
+  // Initialize exam countdown
+  console.log('🚀 Initializing exam countdown...')
+  loadExamCountdown()
+  if (!window.examCountdownInterval) {
+    window.examCountdownInterval = setInterval(loadExamCountdown, 60000) // Update every minute
+  }
+}
+
+// Initialize everything when page loads
+document.addEventListener('DOMContentLoaded', function() {
+  console.log('🔄 DOM Content Loaded - Initializing...')
+  initializeApp()
 })
+
+// Fallback initialization if DOM is already loaded
+if (document.readyState === 'loading') {
+  // DOM is still loading, wait for DOMContentLoaded
+} else {
+  // DOM is already loaded, initialize immediately
+  console.log('🔄 DOM already loaded - Initializing immediately...')
+  initializeApp()
+}
 
 // Filter Functions
 function applyFilters() {
@@ -3670,6 +4149,807 @@ function clearAllFilters() {
   } catch (error) {
     console.error('Error clearing filters:', error)
   }
+}
+
+// CGPA Analysis Functions
+let currentCGPAData = null
+
+function openCGPAAnalysis(timestamp) {
+  try {
+    // Find the CGPA record by timestamp
+    fetch('/api/history')
+      .then(response => response.json())
+      .then(data => {
+        const cgpaRecord = data.cgpa.find(record => record.timestamp === timestamp)
+        if (!cgpaRecord) {
+          showNotification('CGPA record not found', 'error')
+          return
+        }
+
+        currentCGPAData = cgpaRecord.result
+        currentCGPATimestamp = timestamp  // Store the timestamp for updates
+        displayCGPAAnalysis(currentCGPAData)
+
+        // Show modal
+        const modal = document.getElementById('cgpaAnalysisModal')
+        modal.style.display = 'flex'
+      })
+      .catch(error => {
+        console.error('Error loading CGPA data:', error)
+        showNotification('Error loading CGPA analysis', 'error')
+      })
+  } catch (error) {
+    console.error('Error opening CGPA analysis:', error)
+  }
+}
+
+function displayCGPAAnalysis(data) {
+  try {
+    console.log('Displaying CGPA analysis with data:', data)
+
+    // Update summary cards
+    document.getElementById('analysisCGPA').textContent = data.cgpa || '-'
+    document.getElementById('analysisScale').textContent = `${data.scale || 10}.0 Scale`
+    document.getElementById('analysisTotalCredits').textContent = data.total_credits || '-'
+    document.getElementById('analysisSemesters').textContent = `${data.semesters?.length || 0} Semesters`
+
+    // Calculate average SGPA
+    const avgSGPA = data.semesters?.length > 0
+      ? (data.semesters.reduce((sum, sem) => sum + sem.sgpa, 0) / data.semesters.length).toFixed(2)
+      : '-'
+    document.getElementById('analysisAvgSGPA').textContent = avgSGPA
+    document.getElementById('analysisGradePoints').textContent = `${data.total_grade_points || '-'} Points`
+
+    // Update scale conversions
+    document.getElementById('analysis4Scale').textContent = data.gpa_4_scale || '-'
+    document.getElementById('analysis5Scale').textContent = data.gpa_5_scale || '-'
+
+    // Calculate percentage if not available
+    let percentage = data.percentage
+    if (!percentage && data.cgpa) {
+      percentage = ((data.cgpa - 0.5) * 10).toFixed(1)
+    }
+    document.getElementById('analysisPercentage').textContent = percentage ? `${percentage}%` : '-'
+
+    // Populate semester details table first
+    populateSemesterTable(data.semesters || [])
+
+    // Check if Chart.js is available
+    if (typeof Chart === 'undefined') {
+      console.error('Chart.js is not loaded')
+      showChartsNotAvailable()
+      return
+    }
+
+    // Create charts with delay to ensure DOM is ready
+    setTimeout(() => {
+      console.log('Creating charts with semester data:', data.semesters)
+      createSGPACreditsChart(data.semesters || [])
+      createSGPATrendChart(data.semesters || [])
+    }, 200)
+
+  } catch (error) {
+    console.error('Error displaying CGPA analysis:', error)
+    showNotification('Error displaying analysis data', 'error')
+  }
+}
+
+function showChartsNotAvailable() {
+  const creditsChartContainer = document.querySelector('#sgpaCreditsChart').parentElement
+  const trendChartContainer = document.querySelector('#sgpaTrendChart').parentElement
+
+  if (creditsChartContainer) {
+    creditsChartContainer.innerHTML = `
+      <h6><i class="fas fa-chart-bar"></i> SGPA vs Credits by Semester</h6>
+      <div style="text-align: center; padding: 40px; color: #666; background: #f8f9fa; border-radius: 8px;">
+        <i class="fas fa-exclamation-triangle" style="font-size: 2rem; margin-bottom: 16px; color: #ffc107;"></i>
+        <p>Charts are not available. Chart.js library failed to load.</p>
+        <p style="font-size: 0.9rem;">Please check your internet connection and refresh the page.</p>
+      </div>
+    `
+  }
+
+  if (trendChartContainer) {
+    trendChartContainer.innerHTML = `
+      <h6><i class="fas fa-chart-line"></i> SGPA Trend Over Semesters</h6>
+      <div style="text-align: center; padding: 40px; color: #666; background: #f8f9fa; border-radius: 8px;">
+        <i class="fas fa-exclamation-triangle" style="font-size: 2rem; margin-bottom: 16px; color: #ffc107;"></i>
+        <p>Trend chart is not available. Chart.js library failed to load.</p>
+        <p style="font-size: 0.9rem;">Please check your internet connection and refresh the page.</p>
+      </div>
+    `
+  }
+}
+
+function createSGPACreditsChart(semesters) {
+  try {
+    console.log('Attempting to create SGPA Credits chart...')
+
+    const canvas = document.getElementById('sgpaCreditsChart')
+    if (!canvas) {
+      console.error('SGPA Credits chart canvas not found')
+      // Try to create a fallback message
+      const container = document.querySelector('.chart-container')
+      if (container) {
+        container.innerHTML = '<p style="text-align: center; color: #666; padding: 40px;">Chart could not be loaded. Canvas element not found.</p>'
+      }
+      return
+    }
+
+    console.log('Canvas found:', canvas)
+
+    // Check if Chart.js is loaded
+    if (typeof Chart === 'undefined') {
+      console.error('Chart.js is not loaded')
+      canvas.parentElement.innerHTML = '<p style="text-align: center; color: #666; padding: 40px;">Chart.js library not loaded.</p>'
+      return
+    }
+
+    const ctx = canvas.getContext('2d')
+    console.log('Canvas context:', ctx)
+
+    // Destroy existing chart if it exists
+    if (window.sgpaCreditsChart && typeof window.sgpaCreditsChart.destroy === 'function') {
+      console.log('Destroying existing chart')
+      window.sgpaCreditsChart.destroy()
+      window.sgpaCreditsChart = null
+    }
+
+    if (!semesters || semesters.length === 0) {
+      console.log('No semester data for SGPA Credits chart')
+      canvas.parentElement.innerHTML = '<p style="text-align: center; color: #666; padding: 40px;">No semester data available for chart.</p>'
+      return
+    }
+
+    const labels = semesters.map((sem, index) => sem.semester || `Semester ${index + 1}`)
+    const sgpaData = semesters.map(sem => parseFloat(sem.sgpa) || 0)
+    const creditsData = semesters.map(sem => parseFloat(sem.credits) || 0)
+
+    console.log('Chart data prepared:', { labels, sgpaData, creditsData })
+
+    // Set canvas size
+    canvas.width = 400
+    canvas.height = 200
+
+    try {
+      window.sgpaCreditsChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: 'SGPA',
+            data: sgpaData,
+            backgroundColor: 'rgba(108, 92, 231, 0.8)',
+            borderColor: 'rgba(108, 92, 231, 1)',
+            borderWidth: 1,
+            yAxisID: 'y'
+          },
+          {
+            label: 'Credits',
+            data: creditsData,
+            backgroundColor: 'rgba(0, 184, 148, 0.8)',
+            borderColor: 'rgba(0, 184, 148, 1)',
+            borderWidth: 1,
+            yAxisID: 'y1'
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'top',
+          }
+        },
+        scales: {
+          y: {
+            type: 'linear',
+            display: true,
+            position: 'left',
+            title: {
+              display: true,
+              text: 'SGPA'
+            },
+            min: 0,
+            max: 10
+          },
+          y1: {
+            type: 'linear',
+            display: true,
+            position: 'right',
+            title: {
+              display: true,
+              text: 'Credits'
+            },
+            grid: {
+              drawOnChartArea: false,
+            },
+            min: 0
+          }
+        }
+      }
+    })
+
+      console.log('SGPA Credits chart created successfully:', window.sgpaCreditsChart)
+    } catch (chartError) {
+      console.error('Error creating Chart.js instance:', chartError)
+      const canvas = document.getElementById('sgpaCreditsChart')
+      if (canvas && canvas.parentElement) {
+        canvas.parentElement.innerHTML = `<p style="text-align: center; color: #e74c3c; padding: 40px;">Error creating chart: ${chartError.message}</p>`
+      }
+    }
+  } catch (error) {
+    console.error('Error creating SGPA Credits chart:', error)
+    const canvas = document.getElementById('sgpaCreditsChart')
+    if (canvas && canvas.parentElement) {
+      canvas.parentElement.innerHTML = `<p style="text-align: center; color: #e74c3c; padding: 40px;">Error creating chart: ${error.message}</p>`
+    }
+  }
+}
+
+function createSGPATrendChart(semesters) {
+  try {
+    console.log('Attempting to create SGPA Trend chart...')
+
+    const canvas = document.getElementById('sgpaTrendChart')
+    if (!canvas) {
+      console.error('SGPA Trend chart canvas not found')
+      return
+    }
+
+    console.log('Trend chart canvas found:', canvas)
+
+    // Check if Chart.js is loaded
+    if (typeof Chart === 'undefined') {
+      console.error('Chart.js is not loaded for trend chart')
+      canvas.parentElement.innerHTML = '<p style="text-align: center; color: #666; padding: 40px;">Chart.js library not loaded.</p>'
+      return
+    }
+
+    const ctx = canvas.getContext('2d')
+    console.log('Trend chart canvas context:', ctx)
+
+    // Destroy existing chart if it exists
+    if (window.sgpaTrendChart && typeof window.sgpaTrendChart.destroy === 'function') {
+      console.log('Destroying existing trend chart')
+      window.sgpaTrendChart.destroy()
+      window.sgpaTrendChart = null
+    }
+
+    if (!semesters || semesters.length === 0) {
+      console.log('No semester data for SGPA Trend chart')
+      canvas.parentElement.innerHTML = '<p style="text-align: center; color: #666; padding: 40px;">No semester data available for trend chart.</p>'
+      return
+    }
+
+    const labels = semesters.map((sem, index) => sem.semester || `Semester ${index + 1}`)
+    const sgpaData = semesters.map(sem => parseFloat(sem.sgpa) || 0)
+
+    console.log('Trend chart data prepared:', { labels, sgpaData })
+
+    // Find peak and lowest values
+    const maxValue = Math.max(...sgpaData)
+    const minValue = Math.min(...sgpaData)
+    const maxIndex = sgpaData.indexOf(maxValue)
+    const minIndex = sgpaData.indexOf(minValue)
+
+    // Function to get color based on SGPA value with gradient
+    function getGradientColor(value, min, max) {
+      if (max === min) {
+        return '#6c5ce7' // Default purple if all values are same
+      }
+
+      // Normalize value between 0 and 1
+      const normalized = (value - min) / (max - min)
+
+      // Define color stops: Red -> Orange -> Light Yellow -> Green
+      if (normalized <= 0.33) {
+        // Red to Orange (0 to 0.33)
+        const ratio = normalized / 0.33
+        const r = 231 // Red component stays high
+        const g = Math.round(76 + (165 - 76) * ratio) // 76 to 165
+        const b = 60 // Blue component stays low
+        return `rgb(${r}, ${g}, ${b})`
+      } else if (normalized <= 0.66) {
+        // Orange to Light Yellow (0.33 to 0.66)
+        const ratio = (normalized - 0.33) / 0.33
+        const r = Math.round(231 + (255 - 231) * ratio) // 231 to 255 (bright)
+        const g = Math.round(165 + (255 - 165) * ratio) // 165 to 255 (very bright)
+        const b = Math.round(60 + (150 - 60) * ratio) // 60 to 150 (much lighter)
+        return `rgb(${r}, ${g}, ${b})`
+      } else {
+        // Light Yellow to Green (0.66 to 1)
+        const ratio = (normalized - 0.66) / 0.34
+        const r = Math.round(255 + (0 - 255) * ratio) // 255 to 0
+        const g = Math.round(255 + (184 - 255) * ratio) // 255 to 184
+        const b = Math.round(150 + (148 - 150) * ratio) // 150 to 148
+        return `rgb(${r}, ${g}, ${b})`
+      }
+    }
+
+    // Function to get performance label
+    function getPerformanceLabel(value, min, max) {
+      if (max === min) return 'Consistent'
+
+      const normalized = (value - min) / (max - min)
+      if (normalized <= 0.25) return 'Needs Improvement'
+      else if (normalized <= 0.5) return 'Below Average'
+      else if (normalized <= 0.75) return 'Good Performance'
+      else return 'Excellent Performance'
+    }
+
+    // Create point colors array with gradient
+    const pointColors = sgpaData.map(value => getGradientColor(value, minValue, maxValue))
+
+    // Create border colors for better visibility (darker borders for light colors)
+    const borderColors = pointColors.map(color => {
+      // If it's a light yellow color, use a darker border
+      if (color.includes('255, 255') || color.includes('254, 254')) {
+        return '#b8860b' // Dark goldenrod for light yellow points
+      }
+      return '#fff' // White for other colors
+    })
+
+    // Create point radius array - make extreme values slightly larger
+    const pointRadii = sgpaData.map((value, index) => {
+      if (maxValue !== minValue) {
+        if (index === maxIndex && value === maxValue) {
+          return 9 // Slightly larger for peak
+        } else if (index === minIndex && value === minValue) {
+          return 9 // Slightly larger for lowest
+        }
+      }
+      return 7 // Default size (increased from 6)
+    })
+
+    console.log('Peak value:', maxValue, 'at index:', maxIndex)
+    console.log('Lowest value:', minValue, 'at index:', minIndex)
+
+    // Set canvas size
+    canvas.width = 400
+    canvas.height = 200
+
+    try {
+      window.sgpaTrendChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'SGPA Trend',
+          data: sgpaData,
+          borderColor: 'rgba(108, 92, 231, 1)',
+          backgroundColor: 'rgba(108, 92, 231, 0.1)',
+          borderWidth: 3,
+          fill: true,
+          tension: 0.4,
+          pointBackgroundColor: pointColors,
+          pointBorderColor: borderColors,
+          pointBorderWidth: 3,
+          pointRadius: pointRadii,
+          pointHoverRadius: pointRadii.map(r => r + 2),
+          pointHoverBorderWidth: 4
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: false
+          },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                const value = context.parsed.y
+                const index = context.dataIndex
+                let label = `SGPA: ${value}`
+
+                // Add performance level based on gradient
+                const performanceLabel = getPerformanceLabel(value, minValue, maxValue)
+
+                if (maxValue !== minValue) {
+                  if (index === maxIndex && value === maxValue) {
+                    label += ` 🏆 (${performanceLabel})`
+                  } else if (index === minIndex && value === minValue) {
+                    label += ` ⚠️ (${performanceLabel})`
+                  } else {
+                    label += ` (${performanceLabel})`
+                  }
+                } else {
+                  label += ` (${performanceLabel})`
+                }
+
+                return label
+              }
+            }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            max: 10,
+            title: {
+              display: true,
+              text: 'SGPA'
+            }
+          },
+          x: {
+            title: {
+              display: true,
+              text: 'Semester'
+            }
+          }
+        }
+      }
+    })
+
+      console.log('SGPA Trend chart created successfully:', window.sgpaTrendChart)
+    } catch (chartError) {
+      console.error('Error creating Chart.js trend instance:', chartError)
+      const canvas = document.getElementById('sgpaTrendChart')
+      if (canvas && canvas.parentElement) {
+        canvas.parentElement.innerHTML = `<p style="text-align: center; color: #e74c3c; padding: 40px;">Error creating trend chart: ${chartError.message}</p>`
+      }
+    }
+  } catch (error) {
+    console.error('Error creating SGPA Trend chart:', error)
+    const canvas = document.getElementById('sgpaTrendChart')
+    if (canvas && canvas.parentElement) {
+      canvas.parentElement.innerHTML = `<p style="text-align: center; color: #e74c3c; padding: 40px;">Error creating trend chart: ${error.message}</p>`
+    }
+  }
+}
+
+function populateSemesterTable(semesters) {
+  const tableBody = document.getElementById('semesterDetailsTable')
+
+  const tableHTML = semesters.map(semester => {
+    // Determine performance level
+    let performanceClass = 'performance-average'
+    let performanceText = 'Average'
+
+    if (semester.sgpa >= 9) {
+      performanceClass = 'performance-excellent'
+      performanceText = 'Excellent'
+    } else if (semester.sgpa >= 8) {
+      performanceClass = 'performance-good'
+      performanceText = 'Good'
+    } else if (semester.sgpa < 6) {
+      performanceClass = 'performance-poor'
+      performanceText = 'Needs Improvement'
+    }
+
+    return `
+      <tr>
+        <td><strong>${semester.semester}</strong></td>
+        <td>${semester.sgpa}</td>
+        <td>${semester.credits}</td>
+        <td>${semester.grade_points.toFixed(2)}</td>
+        <td><span class="performance-badge ${performanceClass}">${performanceText}</span></td>
+      </tr>
+    `
+  }).join('')
+
+  tableBody.innerHTML = tableHTML
+}
+
+function closeCGPAAnalysisModal() {
+  const modal = document.getElementById('cgpaAnalysisModal')
+  modal.style.display = 'none'
+
+  // Destroy charts to prevent memory leaks
+  if (window.sgpaCreditsChart && typeof window.sgpaCreditsChart.destroy === 'function') {
+    window.sgpaCreditsChart.destroy()
+    window.sgpaCreditsChart = null
+  }
+  if (window.sgpaTrendChart && typeof window.sgpaTrendChart.destroy === 'function') {
+    window.sgpaTrendChart.destroy()
+    window.sgpaTrendChart = null
+  }
+}
+
+function exportCGPAAnalysis() {
+  if (!currentCGPAData) {
+    showNotification('No data to export', 'error')
+    return
+  }
+
+  try {
+    // Create export data
+    const exportData = {
+      cgpa: currentCGPAData.cgpa,
+      scale: currentCGPAData.scale || 10,
+      total_credits: currentCGPAData.total_credits,
+      total_grade_points: currentCGPAData.total_grade_points,
+      gpa_4_scale: currentCGPAData.gpa_4_scale,
+      gpa_5_scale: currentCGPAData.gpa_5_scale,
+      percentage: currentCGPAData.percentage || ((currentCGPAData.cgpa - 0.5) * 10).toFixed(1),
+      semesters: currentCGPAData.semesters,
+      calculated_at: currentCGPAData.calculated_at,
+      exported_at: new Date().toISOString()
+    }
+
+    // Create and download file
+    const dataStr = JSON.stringify(exportData, null, 2)
+    const dataBlob = new Blob([dataStr], {type: 'application/json'})
+    const url = URL.createObjectURL(dataBlob)
+
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `cgpa-analysis-${new Date().toISOString().split('T')[0]}.json`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+
+    showNotification('CGPA analysis exported successfully!', 'success')
+  } catch (error) {
+    console.error('Error exporting CGPA analysis:', error)
+    showNotification('Error exporting analysis', 'error')
+  }
+}
+
+// Initialize Chart.js check when page loads
+document.addEventListener('DOMContentLoaded', function() {
+  // Initialize chart variables
+  window.sgpaCreditsChart = null
+  window.sgpaTrendChart = null
+
+  // Check if Chart.js is loaded after a delay
+  setTimeout(() => {
+    if (typeof Chart !== 'undefined') {
+      console.log('✅ Chart.js loaded successfully:', Chart.version)
+    } else {
+      console.error('❌ Chart.js failed to load')
+      showNotification('Chart.js library failed to load. Charts may not display properly.', 'warning')
+    }
+  }, 2000)
+})
+
+// Add New Semester Functions
+let currentCGPATimestamp = null
+
+function openAddSemesterModal() {
+  if (!currentCGPAData) {
+    showNotification('No CGPA data available', 'error')
+    return
+  }
+
+  // Set the scale based on current CGPA data
+  const scaleSelect = document.getElementById('newSemesterScale')
+  scaleSelect.value = currentCGPAData.scale || 10
+
+  // Set next semester number
+  const nextSemesterNum = (currentCGPAData.semesters?.length || 0) + 1
+  document.getElementById('newSemesterName').value = `Semester ${nextSemesterNum}`
+
+  // Show modal
+  const modal = document.getElementById('addSemesterModal')
+  modal.style.display = 'flex'
+
+  // Add event listeners for preview
+  addPreviewListeners()
+}
+
+function closeAddSemesterModal() {
+  const modal = document.getElementById('addSemesterModal')
+  modal.style.display = 'none'
+
+  // Clear form
+  document.getElementById('addSemesterForm').reset()
+  document.getElementById('semesterPreview').style.display = 'none'
+
+  // Remove event listeners
+  removePreviewListeners()
+}
+
+function addPreviewListeners() {
+  const inputs = ['newSemesterName', 'newSemesterSGPA', 'newSemesterCredits', 'newSemesterScale']
+  inputs.forEach(id => {
+    const element = document.getElementById(id)
+    element.addEventListener('input', updateSemesterPreview)
+  })
+}
+
+function removePreviewListeners() {
+  const inputs = ['newSemesterName', 'newSemesterSGPA', 'newSemesterCredits', 'newSemesterScale']
+  inputs.forEach(id => {
+    const element = document.getElementById(id)
+    element.removeEventListener('input', updateSemesterPreview)
+  })
+}
+
+function updateSemesterPreview() {
+  const name = document.getElementById('newSemesterName').value
+  const sgpa = parseFloat(document.getElementById('newSemesterSGPA').value) || 0
+  const credits = parseFloat(document.getElementById('newSemesterCredits').value) || 0
+  const scale = parseFloat(document.getElementById('newSemesterScale').value) || 10
+
+  if (name && sgpa > 0 && credits > 0) {
+    const gradePoints = sgpa * credits
+
+    document.getElementById('previewSemester').textContent = name
+    document.getElementById('previewSGPA').textContent = sgpa.toFixed(2)
+    document.getElementById('previewCredits').textContent = credits
+    document.getElementById('previewGradePoints').textContent = gradePoints.toFixed(2)
+
+    document.getElementById('semesterPreview').style.display = 'block'
+  } else {
+    document.getElementById('semesterPreview').style.display = 'none'
+  }
+}
+
+function addNewSemester() {
+  try {
+    const name = document.getElementById('newSemesterName').value.trim()
+    const sgpa = parseFloat(document.getElementById('newSemesterSGPA').value)
+    const credits = parseFloat(document.getElementById('newSemesterCredits').value)
+    const scale = parseFloat(document.getElementById('newSemesterScale').value)
+
+    // Validation
+    if (!name) {
+      showNotification('Please enter semester name', 'error')
+      return
+    }
+
+    if (!sgpa || sgpa <= 0 || sgpa > scale) {
+      showNotification(`Please enter valid SGPA (0 - ${scale})`, 'error')
+      return
+    }
+
+    if (!credits || credits <= 0) {
+      showNotification('Please enter valid credits', 'error')
+      return
+    }
+
+    // Create new semester object
+    const newSemester = {
+      semester: name,
+      sgpa: sgpa,
+      credits: credits,
+      grade_points: sgpa * credits
+    }
+
+    // Add to current data
+    const updatedSemesters = [...(currentCGPAData.semesters || []), newSemester]
+
+    // Recalculate CGPA
+    const totalCredits = updatedSemesters.reduce((sum, sem) => sum + sem.credits, 0)
+    const totalGradePoints = updatedSemesters.reduce((sum, sem) => sum + sem.grade_points, 0)
+    const newCGPA = totalGradePoints / totalCredits
+
+    // Calculate scale conversions
+    let gpa_4_scale, gpa_5_scale, gpa_10_scale, percentage
+
+    if (scale === 10) {
+      gpa_4_scale = ((newCGPA - 5) * 4) / 5
+      gpa_5_scale = newCGPA / 2
+      percentage = (newCGPA - 0.5) * 10
+    } else if (scale === 5) {
+      gpa_4_scale = (newCGPA * 4) / 5
+      gpa_10_scale = newCGPA * 2
+      percentage = (gpa_10_scale - 0.5) * 10
+    } else if (scale === 4) {
+      gpa_10_scale = (newCGPA * 5) + 5
+      gpa_5_scale = gpa_10_scale / 2
+      percentage = (gpa_10_scale - 0.5) * 10
+    }
+
+    // Create updated CGPA data
+    const updatedCGPAData = {
+      cgpa: parseFloat(newCGPA.toFixed(2)),
+      scale: scale,
+      total_credits: totalCredits,
+      total_grade_points: parseFloat(totalGradePoints.toFixed(2)),
+      semesters: updatedSemesters,
+      gpa_4_scale: gpa_4_scale ? parseFloat(gpa_4_scale.toFixed(2)) : undefined,
+      gpa_5_scale: gpa_5_scale ? parseFloat(gpa_5_scale.toFixed(2)) : undefined,
+      gpa_10_scale: gpa_10_scale ? parseFloat(gpa_10_scale.toFixed(2)) : undefined,
+      percentage: percentage ? parseFloat(percentage.toFixed(1)) : undefined,
+      calculated_at: new Date().toISOString()
+    }
+
+    // Save updated data
+    saveUpdatedCGPAData(updatedCGPAData)
+
+  } catch (error) {
+    console.error('Error adding new semester:', error)
+    showNotification('Error adding semester', 'error')
+  }
+}
+
+function saveUpdatedCGPAData(updatedData) {
+  try {
+    if (!currentCGPATimestamp) {
+      // If no timestamp, create a new record
+      return createNewCGPARecord(updatedData)
+    }
+
+    // Update the existing record using the stored timestamp
+    fetch('/api/update_cgpa_record', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        timestamp: currentCGPATimestamp,
+        result: updatedData
+      })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.error) {
+        showNotification('Error updating CGPA: ' + data.error, 'error')
+        return
+      }
+
+      // Update current data
+      currentCGPAData = updatedData
+
+      // Refresh the analysis display
+      displayCGPAAnalysis(updatedData)
+
+      // Close the add semester modal
+      closeAddSemesterModal()
+
+      // Refresh history to show updated calculation
+      loadHistory()
+
+      showNotification('New semester added successfully! CGPA updated.', 'success')
+    })
+    .catch(error => {
+      console.error('Error updating CGPA record:', error)
+      showNotification('Error updating CGPA record', 'error')
+    })
+
+  } catch (error) {
+    console.error('Error in saveUpdatedCGPAData:', error)
+    showNotification('Error saving data', 'error')
+  }
+}
+
+function createNewCGPARecord(updatedData) {
+  // Create a new CGPA calculation record
+  fetch('/api/calculate_cgpa', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      semesters: updatedData.semesters.map(sem => ({
+        sgpa: sem.sgpa,
+        credits: sem.credits
+      })),
+      scale: updatedData.scale
+    })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.error) {
+      showNotification('Error creating new CGPA record: ' + data.error, 'error')
+      return
+    }
+
+    // Update current data
+    currentCGPAData = updatedData
+
+    // Refresh the analysis display
+    displayCGPAAnalysis(updatedData)
+
+    // Close the add semester modal
+    closeAddSemesterModal()
+
+    // Refresh history to show new calculation
+    loadHistory()
+
+    showNotification('New semester added successfully! New CGPA calculation created.', 'success')
+  })
+  .catch(error => {
+    console.error('Error creating new CGPA record:', error)
+    showNotification('Error creating new CGPA record', 'error')
+  })
 }
 
 

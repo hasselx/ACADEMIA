@@ -689,7 +689,10 @@ def check_and_send_email_reminders():
                 continue
 
             reminders = reminders_data['reminders']
-            now = datetime.now()
+            # Use Indian timezone for current time
+            import pytz
+            indian_tz = pytz.timezone('Asia/Kolkata')
+            now = datetime.now(indian_tz).replace(tzinfo=None)
 
             for reminder in reminders:
                 if reminder.get('completed', False):
@@ -714,19 +717,25 @@ def check_and_send_email_reminders():
                         # Remove the duplicate timezone suffix
                         cleaned_date_str = re.sub(double_tz_pattern, r'\1', cleaned_date_str)
 
-                    # Parse due date and handle timezone
+                    # Parse due date and handle timezone properly
                     if cleaned_date_str.endswith('Z'):
+                        # UTC time - convert to local timezone
                         due_date = datetime.fromisoformat(cleaned_date_str.replace('Z', '+00:00'))
+                        # Convert to local timezone
+                        import pytz
+                        local_tz = pytz.timezone('Asia/Kolkata')  # Indian timezone
+                        due_date = due_date.astimezone(local_tz).replace(tzinfo=None)
                     elif '+' in cleaned_date_str or cleaned_date_str.endswith('00:00'):
+                        # Has timezone info
                         due_date = datetime.fromisoformat(cleaned_date_str)
+                        if due_date.tzinfo is not None:
+                            # Convert to Indian timezone
+                            import pytz
+                            local_tz = pytz.timezone('Asia/Kolkata')
+                            due_date = due_date.astimezone(local_tz).replace(tzinfo=None)
                     else:
-                        # Assume local timezone if no timezone info
+                        # Assume Indian timezone if no timezone info
                         due_date = datetime.fromisoformat(cleaned_date_str)
-
-                    # Make sure both datetimes are timezone-naive for comparison
-                    if due_date.tzinfo is not None:
-                        # Convert to local time first, then remove timezone info
-                        due_date = due_date.astimezone().replace(tzinfo=None)
 
                     time_diff = due_date - now
                     hours_until_due = time_diff.total_seconds() / 3600
@@ -1696,10 +1705,10 @@ def get_timetable():
         username = session.get('username')
         if not username:
             return jsonify({'error': 'User not found in session'}), 401
-        
+
         timetable_data = get_user_data(username, 'timetable')
         return jsonify({'timetable': timetable_data})
-            
+
     except Exception as e:
         print(f"Error retrieving timetable: {e}")
         return jsonify({'error': 'Error retrieving timetable'}), 500
@@ -1712,21 +1721,121 @@ def save_timetable():
         username = session.get('username')
         if not username:
             return jsonify({'error': 'User not found in session'}), 401
-        
+
         data = request.get_json()
         if not data:
             return jsonify({'error': 'No data provided'}), 400
-        
+
         timetable_data = data.get('timetable', {})
-        
+
         if save_user_data(username, 'timetable', timetable_data):
             return jsonify({'success': True, 'message': 'Timetable saved successfully'})
         else:
             return jsonify({'error': 'Error saving timetable'}), 500
-        
+
     except Exception as e:
         print(f"Error saving timetable: {e}")
         return jsonify({'error': 'Error saving timetable'}), 500
+
+# Exam Timetable API Routes
+@app.route('/api/exam-timetable', methods=['GET'])
+@login_required
+def get_exam_timetable():
+    """Get user's exam timetable from Firebase"""
+    try:
+        username = session.get('username')
+        if not username:
+            return jsonify({'error': 'User not found in session'}), 401
+
+        exam_timetable_data = get_user_data(username, 'exam_timetable')
+        return jsonify({'exam_timetable': exam_timetable_data})
+
+    except Exception as e:
+        print(f"Error retrieving exam timetable: {e}")
+        return jsonify({'error': 'Error retrieving exam timetable'}), 500
+
+@app.route('/api/exam-timetable', methods=['POST'])
+@login_required
+def save_exam_timetable():
+    """Save user's exam timetable to Firebase"""
+    try:
+        username = session.get('username')
+        if not username:
+            return jsonify({'error': 'User not found in session'}), 401
+
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+
+        exam_timetable_data = data.get('exam_timetable', {})
+
+        if save_user_data(username, 'exam_timetable', exam_timetable_data):
+            return jsonify({'success': True, 'message': 'Exam timetable saved successfully'})
+        else:
+            return jsonify({'error': 'Error saving exam timetable'}), 500
+
+    except Exception as e:
+        print(f"Error saving exam timetable: {e}")
+        return jsonify({'error': 'Error saving exam timetable'}), 500
+
+@app.route('/api/next-exam', methods=['GET'])
+@login_required
+def get_next_exam():
+    """Get the next upcoming exam for countdown display"""
+    try:
+        username = session.get('username')
+        if not username:
+            return jsonify({'error': 'User not found in session'}), 401
+
+        exam_timetable_data = get_user_data(username, 'exam_timetable')
+
+        if not exam_timetable_data or 'exams' not in exam_timetable_data:
+            return jsonify({'next_exam': None})
+
+        from datetime import datetime, timedelta
+        import pytz
+
+        # Get current time in IST
+        ist = pytz.timezone('Asia/Kolkata')
+        now = datetime.now(ist)
+
+        upcoming_exams = []
+
+        for exam in exam_timetable_data['exams']:
+            try:
+                # Parse exam date and time
+                exam_date = datetime.strptime(exam['date'], '%Y-%m-%d')
+                exam_time_str = exam.get('time', '09:00')  # Default to 9 AM if no time
+                exam_time = datetime.strptime(exam_time_str, '%H:%M').time()
+
+                # Combine date and time
+                exam_datetime = datetime.combine(exam_date.date(), exam_time)
+                exam_datetime = ist.localize(exam_datetime)
+
+                # Only include future exams
+                if exam_datetime > now:
+                    time_diff = exam_datetime - now
+                    exam['datetime'] = exam_datetime.isoformat()
+                    exam['days_left'] = time_diff.days
+                    exam['hours_left'] = time_diff.seconds // 3600
+                    exam['minutes_left'] = (time_diff.seconds % 3600) // 60
+                    upcoming_exams.append(exam)
+
+            except (ValueError, KeyError) as e:
+                print(f"Error parsing exam date/time: {e}")
+                continue
+
+        # Sort by datetime and get the next exam
+        if upcoming_exams:
+            upcoming_exams.sort(key=lambda x: x['datetime'])
+            next_exam = upcoming_exams[0]
+            return jsonify({'next_exam': next_exam})
+        else:
+            return jsonify({'next_exam': None})
+
+    except Exception as e:
+        print(f"Error getting next exam: {e}")
+        return jsonify({'error': 'Error getting next exam'}), 500
 
 # CGPA API Routes
 @app.route('/api/calculate_cgpa', methods=['POST'])
@@ -2233,6 +2342,54 @@ def delete_cgpa_record():
     except Exception as e:
         print(f"Delete CGPA record error: {e}")
         return jsonify({'error': 'Error deleting CGPA record', 'details': str(e)}), 500
+
+@app.route('/api/update_cgpa_record', methods=['PUT'])
+@login_required
+def update_cgpa_record():
+    """Update a specific CGPA calculation record"""
+    try:
+        username = session.get('username')
+        if not username:
+            return jsonify({'error': 'User not found in session'}), 401
+
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+
+        timestamp = data.get('timestamp')
+        updated_result = data.get('result')
+
+        if not timestamp or not updated_result:
+            return jsonify({'error': 'Timestamp and result data required'}), 400
+
+        # Get existing calculations
+        calculations = get_user_data(username, 'calculations')
+        if not calculations:
+            return jsonify({'error': 'No calculations found'}), 404
+
+        # Find and update the record with matching timestamp
+        cgpa_records = calculations.get('cgpa', [])
+        updated = False
+
+        for record in cgpa_records:
+            if record.get('timestamp') == timestamp:
+                record['result'] = updated_result
+                record['timestamp'] = datetime.now().isoformat()  # Update timestamp
+                updated = True
+                break
+
+        if not updated:
+            return jsonify({'error': 'Record not found'}), 404
+
+        # Save updated calculations
+        if save_user_data(username, 'calculations', calculations):
+            return jsonify({'success': True, 'message': 'CGPA record updated successfully'})
+        else:
+            return jsonify({'error': 'Failed to save updated calculations'}), 500
+
+    except Exception as e:
+        print(f"Update CGPA record error: {e}")
+        return jsonify({'error': 'Error updating CGPA record', 'details': str(e)}), 500
 
 @app.route('/api/delete_attendance_record', methods=['DELETE'])
 @login_required
