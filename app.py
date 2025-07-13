@@ -1792,11 +1792,11 @@ def get_next_exam():
         if not exam_timetable_data or 'exams' not in exam_timetable_data:
             return jsonify({'next_exam': None})
 
-        from datetime import datetime
-        import pytz
+        from datetime import datetime, timezone, timedelta
 
         # Get current time in IST (India Standard Time) for consistency
-        ist = pytz.timezone('Asia/Kolkata')
+        ist_offset = timedelta(hours=5, minutes=30)
+        ist = timezone(ist_offset)
         now = datetime.now(ist)
         print(f"🕐 Current time (IST): {now}")
 
@@ -1814,9 +1814,9 @@ def get_next_exam():
 
                 exam_time = datetime.strptime(exam_time_str, '%H:%M').time()
 
-                # Combine date and time and localize to IST
+                # Combine date and time and set to IST timezone
                 exam_datetime = datetime.combine(exam_date.date(), exam_time)
-                exam_datetime = ist.localize(exam_datetime)
+                exam_datetime = exam_datetime.replace(tzinfo=ist)
 
                 # Only include future exams
                 if exam_datetime > now:
