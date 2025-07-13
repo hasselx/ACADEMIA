@@ -1995,11 +1995,7 @@ function switchTimetableType(type) {
     }
   }
 
-  // Show/hide test buttons based on mode
-  const testButtons = document.getElementById('countdownTestButtons')
-  if (testButtons) {
-    testButtons.style.display = type === 'exam' ? 'block' : 'none'
-  }
+
 
   // Load appropriate timetable
   if (type === 'exam') {
@@ -5001,93 +4997,7 @@ function createNewCGPARecord(updatedData) {
   })
 }
 
-// Test Functions for Countdown (Development/Testing)
-function addTestExamTomorrow() {
-  const tomorrow = new Date()
-  tomorrow.setDate(tomorrow.getDate() + 1)
-  tomorrow.setHours(14, 0, 0, 0) // 2 PM tomorrow
 
-  const testExam = {
-    subject: "MATHEMATICS TEST",
-    date: tomorrow.toISOString().split('T')[0],
-    time: "14:00",
-    day: tomorrow.toLocaleDateString('en-US', { weekday: 'long' }),
-    session: "FN",
-    location: "Test Hall"
-  }
-
-  if (!currentExamTimetable.exams) {
-    currentExamTimetable.exams = []
-  }
-
-  currentExamTimetable.exams.push(testExam)
-  saveExamTimetable()
-  displayExamSchedule()
-  showNotification("✅ Added test exam for tomorrow 2 PM", "success")
-}
-
-function addTestExamUrgent() {
-  const urgent = new Date()
-  urgent.setHours(urgent.getHours() + 2) // 2 hours from now
-
-  const testExam = {
-    subject: "PHYSICS URGENT",
-    date: urgent.toISOString().split('T')[0],
-    time: urgent.toTimeString().slice(0, 5),
-    day: urgent.toLocaleDateString('en-US', { weekday: 'long' }),
-    session: "FN",
-    location: "Test Hall"
-  }
-
-  if (!currentExamTimetable.exams) {
-    currentExamTimetable.exams = []
-  }
-
-  currentExamTimetable.exams.push(testExam)
-  saveExamTimetable()
-  displayExamSchedule()
-  showNotification("⚠️ Added urgent exam in 2 hours", "warning")
-}
-
-function addTestExamCritical() {
-  const critical = new Date()
-  critical.setMinutes(critical.getMinutes() + 30) // 30 minutes from now
-
-  const testExam = {
-    subject: "CHEMISTRY CRITICAL",
-    date: critical.toISOString().split('T')[0],
-    time: critical.toTimeString().slice(0, 5),
-    day: critical.toLocaleDateString('en-US', { weekday: 'long' }),
-    session: "FN",
-    location: "Test Hall"
-  }
-
-  if (!currentExamTimetable.exams) {
-    currentExamTimetable.exams = []
-  }
-
-  currentExamTimetable.exams.push(testExam)
-  saveExamTimetable()
-  displayExamSchedule()
-  showNotification("🚨 Added critical exam in 30 minutes", "error")
-}
-
-function clearTestExams() {
-  if (confirm("Are you sure you want to clear all test exams?")) {
-    // Remove only test exams (those with "TEST", "URGENT", or "CRITICAL" in the name)
-    if (currentExamTimetable.exams) {
-      currentExamTimetable.exams = currentExamTimetable.exams.filter(exam =>
-        !exam.subject.includes('TEST') &&
-        !exam.subject.includes('URGENT') &&
-        !exam.subject.includes('CRITICAL')
-      )
-    }
-
-    saveExamTimetable()
-    displayExamSchedule()
-    showNotification("🗑️ Cleared all test exams", "info")
-  }
-}
 
 // Auto-refresh countdown every minute
 setInterval(() => {
