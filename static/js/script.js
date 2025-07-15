@@ -1001,6 +1001,11 @@ function switchTab(tabId) {
   currentTab = tabId
   console.log(`Current active tab (global variable): ${currentTab}`)
 
+  // Update sidebar navigation active state
+  if (typeof updateSidebarActiveState === 'function') {
+    updateSidebarActiveState();
+  }
+
   // Load specific data for certain tabs after a short delay
   setTimeout(() => {
     console.log(`Step 5: Loading data for tab: ${tabId}`)
@@ -1012,6 +1017,24 @@ function switchTab(tabId) {
       loadTimetable()
     } else if (tabId === "reminders") {
       loadReminders()
+    } else if (tabId === "expenses") {
+      // Load expenses data
+      if (typeof loadExpenses === 'function') loadExpenses();
+      if (typeof loadBudgets === 'function') loadBudgets();
+      if (typeof updateExpenseStats === 'function') updateExpenseStats();
+      if (typeof displayBudgetBreakdown === 'function') displayBudgetBreakdown();
+    } else if (tabId === "direct-messages") {
+      console.log("Loading direct messages...")
+      // Future: Load direct messages data
+    } else if (tabId === "team") {
+      console.log("Loading team data...")
+      // Load team data
+      if (typeof loadTeams === 'function') loadTeams();
+      if (typeof loadTeamInvitations === 'function') loadTeamInvitations();
+    } else if (tabId === "requests") {
+      console.log("Loading friend requests...")
+      // Load friend requests data
+      if (typeof loadFriendRequests === 'function') loadFriendRequests();
     }
   }, 100) // Small delay
   console.groupEnd() // End the collapsible group
@@ -3900,7 +3923,7 @@ function deleteAttendanceRecord(timestamp) {
 // Test function to test tab switching
 function testTabs() {
   console.log("Testing all tabs...")
-  const tabs = ["reminders", "cgpa", "attendance", "holidays", "history", "timetable"]
+  const tabs = ["reminders", "cgpa", "attendance", "holidays", "history", "timetable", "expenses", "direct-messages", "team", "requests"]
 
   tabs.forEach((tab, index) => {
     setTimeout(() => {

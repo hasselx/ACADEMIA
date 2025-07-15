@@ -943,7 +943,10 @@ def login():
                 
         try:
             user_data = find_user_by_username(username)
-            
+
+            # Debug: Print all user data
+            print(f"DEBUG: Full user data for {username}: {user_data}")
+
             if user_data and check_password_hash(user_data.get('password_hash', ''), password):
                 # Clear session first
                 session.clear()
@@ -952,7 +955,18 @@ def login():
                 session['username'] = str(username)
                 session['student_name'] = str(user_data.get('student_name', username))
                 session['role'] = str(user_data.get('role', 'student'))
+                session['email'] = str(user_data.get('email', ''))
+
+                # Handle created_at field - use the exact Firebase value
+                created_at = user_data.get('created_at', '2025-07-11T06:34:21.105076')
+                print(f"DEBUG: User {username} created_at from Firebase: {created_at}")
+
+                session['created_at'] = str(created_at)
                 session['logged_in'] = True
+
+                # Debug: Print the created_at value
+                print(f"DEBUG: User {username} created_at: {user_data.get('created_at', 'NOT FOUND')}")
+                print(f"DEBUG: Session created_at: {session.get('created_at', 'NOT SET')}")
                                 
                 print(f"User {username} logged in successfully")
                 flash('Login successful!', 'success')
@@ -1048,10 +1062,19 @@ def register():
 @app.route('/logout')
 def logout():
     username = session.get('username', 'Unknown')
+
+    # Clear the Flask session
     session.clear()
+
+    # Set response headers to prevent caching and ensure clean logout
+    response = redirect(url_for('login'))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+
     print(f"User {username} logged out successfully")
     flash('You have been logged out successfully.', 'success')
-    return redirect(url_for('login'))
+    return response
 
 # Reminder API Routes
 @app.route('/api/test', methods=['GET'])
@@ -2447,11 +2470,1861 @@ def delete_attendance_record():
         print(f"Delete attendance record error: {e}")
         return jsonify({'error': 'Error deleting attendance record', 'details': str(e)}), 500
 
+# Expense Tracker Routes
+@app.route('/api/expenses', methods=['GET'])
+@login_required
+def get_expenses():
+    """Get all expenses for the current user"""
+    try:
+        username = session.get('username')
+        if not username:
+            return jsonify({'error': 'User not found in session'}), 401
+
+        expenses = get_user_data(username, 'expenses')
+        if not expenses:
+            expenses = []
+
+        return jsonify({'expenses': expenses})
+
+    except Exception as e:
+        print(f"Get expenses error: {e}")
+        return jsonify({'error': 'Error fetching expenses', 'details': str(e)}), 500
+
+@app.route('/api/expenses', methods=['POST'])
+@login_required
+def add_expense():
+    """Add a new expense"""
+    try:
+        username = session.get('username')
+        if not username:
+            return jsonify({'error': 'User not found in session'}), 401
+
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+
+        # Validate required fields
+        required_fields = ['amount', 'category', 'description']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({'error': f'{field} is required'}), 400
+
+        # Create expense record
+        expense = {
+            'id': str(uuid.uuid4()),
+            'amount': float(data['amount']),
+            'category': data['category'],
+            'description': data['description'],
+            'date': data.get('date', datetime.now().isoformat()),
+            'created_at': datetime.now().isoformat()
+        }
+
+        # Get existing expenses
+        expenses = get_user_data(username, 'expenses')
+        if not expenses:
+            expenses = []
+
+        # Add new expense
+        expenses.append(expense)
+
+        # Save to Firebase
+        if save_user_data(username, 'expenses', expenses):
+            return jsonify({'success': True, 'expense': expense})
+        else:
+            return jsonify({'error': 'Failed to save expense'}), 500
+
+    except Exception as e:
+        print(f"Add expense error: {e}")
+        return jsonify({'error': 'Error adding expense', 'details': str(e)}), 500
+
+@app.route('/api/expenses/<expense_id>', methods=['PUT'])
+@login_required
+def update_expense(expense_id):
+    """Update an existing expense"""
+    try:
+        username = session.get('username')
+        if not username:
+            return jsonify({'error': 'User not found in session'}), 401
+
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+
+        # Get existing expenses
+        expenses = get_user_data(username, 'expenses')
+        if not expenses:
+            return jsonify({'error': 'No expenses found'}), 404
+
+        # Find and update expense
+        expense_found = False
+        for expense in expenses:
+            if expense['id'] == expense_id:
+                expense['amount'] = float(data.get('amount', expense['amount']))
+                expense['category'] = data.get('category', expense['category'])
+                expense['description'] = data.get('description', expense['description'])
+                expense['date'] = data.get('date', expense['date'])
+                expense['updated_at'] = datetime.now().isoformat()
+                expense_found = True
+                break
+
+        if not expense_found:
+            return jsonify({'error': 'Expense not found'}), 404
+
+        # Save to Firebase
+        if save_user_data(username, 'expenses', expenses):
+            return jsonify({'success': True})
+        else:
+            return jsonify({'error': 'Failed to update expense'}), 500
+
+    except Exception as e:
+        print(f"Update expense error: {e}")
+        return jsonify({'error': 'Error updating expense', 'details': str(e)}), 500
+
+@app.route('/api/expenses/<expense_id>', methods=['DELETE'])
+@login_required
+def delete_expense(expense_id):
+    """Delete an expense"""
+    try:
+        username = session.get('username')
+        if not username:
+            return jsonify({'error': 'User not found in session'}), 401
+
+        # Get existing expenses
+        expenses = get_user_data(username, 'expenses')
+        if not expenses:
+            return jsonify({'error': 'No expenses found'}), 404
+
+        # Filter out the expense to delete
+        original_count = len(expenses)
+        expenses = [expense for expense in expenses if expense['id'] != expense_id]
+
+        if len(expenses) == original_count:
+            return jsonify({'error': 'Expense not found'}), 404
+
+        # Save to Firebase
+        if save_user_data(username, 'expenses', expenses):
+            return jsonify({'success': True})
+        else:
+            return jsonify({'error': 'Failed to delete expense'}), 500
+
+    except Exception as e:
+        print(f"Delete expense error: {e}")
+        return jsonify({'error': 'Error deleting expense', 'details': str(e)}), 500
+
+@app.route('/api/budgets', methods=['GET'])
+@login_required
+def get_budgets():
+    """Get monthly budgets for the current user"""
+    try:
+        username = session.get('username')
+        if not username:
+            return jsonify({'error': 'User not found in session'}), 401
+
+        budgets = get_user_data(username, 'budgets')
+        if not budgets:
+            budgets = {}
+
+        return jsonify({'budgets': budgets})
+
+    except Exception as e:
+        print(f"Get budgets error: {e}")
+        return jsonify({'error': 'Error fetching budgets', 'details': str(e)}), 500
+
+@app.route('/api/budgets', methods=['POST'])
+@login_required
+def set_budget():
+    """Set monthly budget for a category"""
+    try:
+        username = session.get('username')
+        if not username:
+            return jsonify({'error': 'User not found in session'}), 401
+
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+
+        category = data.get('category')
+        amount = data.get('amount')
+        month = data.get('month', datetime.now().strftime('%Y-%m'))
+
+        if not category or not amount:
+            return jsonify({'error': 'Category and amount are required'}), 400
+
+        # Get existing budgets
+        budgets = get_user_data(username, 'budgets')
+        if not budgets:
+            budgets = {}
+
+        # Set budget for category and month
+        if month not in budgets:
+            budgets[month] = {}
+        budgets[month][category] = float(amount)
+
+        # Save to Firebase
+        if save_user_data(username, 'budgets', budgets):
+            return jsonify({'success': True})
+        else:
+            return jsonify({'error': 'Failed to save budget'}), 500
+
+    except Exception as e:
+        print(f"Set budget error: {e}")
+        return jsonify({'error': 'Error setting budget', 'details': str(e)}), 500
+
+@app.route('/api/expense-stats')
+@login_required
+def get_expense_stats():
+    """Get expense statistics and budget alerts"""
+    try:
+        username = session.get('username')
+        if not username:
+            return jsonify({'error': 'User not found in session'}), 401
+
+        expenses = get_user_data(username, 'expenses')
+        budgets = get_user_data(username, 'budgets')
+
+        if not expenses:
+            expenses = []
+        if not budgets:
+            budgets = {}
+
+        current_month = datetime.now().strftime('%Y-%m')
+
+        # Calculate monthly totals by category
+        monthly_totals = {}
+        category_totals = {}
+
+        for expense in expenses:
+            expense_date = datetime.fromisoformat(expense['date'].replace('Z', '+00:00'))
+            expense_month = expense_date.strftime('%Y-%m')
+            category = expense['category']
+            amount = expense['amount']
+
+            if expense_month not in monthly_totals:
+                monthly_totals[expense_month] = {}
+            if category not in monthly_totals[expense_month]:
+                monthly_totals[expense_month][category] = 0
+            monthly_totals[expense_month][category] += amount
+
+            if category not in category_totals:
+                category_totals[category] = 0
+            category_totals[category] += amount
+
+        # Check budget alerts for current month
+        alerts = []
+        current_month_budgets = budgets.get(current_month, {})
+        current_month_expenses = monthly_totals.get(current_month, {})
+
+        for category, budget_amount in current_month_budgets.items():
+            spent_amount = current_month_expenses.get(category, 0)
+            percentage = (spent_amount / budget_amount) * 100 if budget_amount > 0 else 0
+
+            if percentage >= 100:
+                alerts.append({
+                    'type': 'danger',
+                    'category': category,
+                    'message': f'Budget exceeded for {category}! Spent ₹{spent_amount:.2f} of ₹{budget_amount:.2f}',
+                    'percentage': percentage
+                })
+            elif percentage >= 80:
+                alerts.append({
+                    'type': 'warning',
+                    'category': category,
+                    'message': f'80% of budget used for {category}. Spent ₹{spent_amount:.2f} of ₹{budget_amount:.2f}',
+                    'percentage': percentage
+                })
+
+        return jsonify({
+            'monthly_totals': monthly_totals,
+            'category_totals': category_totals,
+            'current_month': current_month,
+            'alerts': alerts,
+            'total_expenses': sum(category_totals.values()),
+            'total_budget': sum(current_month_budgets.values())
+        })
+
+    except Exception as e:
+        print(f"Get expense stats error: {e}")
+        return jsonify({'error': 'Error fetching expense statistics', 'details': str(e)}), 500
+
+@app.route('/api/budget-breakdown')
+@login_required
+def get_budget_breakdown():
+    """Get budget breakdown by category for the current month"""
+    try:
+        username = session.get('username')
+        if not username:
+            return jsonify({'error': 'User not found in session'}), 401
+
+        expenses = get_user_data(username, 'expenses')
+        budgets = get_user_data(username, 'budgets')
+
+        if not expenses:
+            expenses = []
+        if not budgets:
+            budgets = {}
+
+        current_month = datetime.now().strftime('%Y-%m')
+        current_month_budgets = budgets.get(current_month, {})
+
+        # Calculate spending by category for current month
+        current_month_expenses = {}
+        for expense in expenses:
+            expense_date = datetime.strptime(expense['date'], '%Y-%m-%d')
+            expense_month = expense_date.strftime('%Y-%m')
+
+            if expense_month == current_month:
+                category = expense['category']
+                current_month_expenses[category] = current_month_expenses.get(category, 0) + expense['amount']
+
+        # Build breakdown data
+        breakdown = {}
+
+        # Include all categories that have either budget or spending
+        all_categories = set(current_month_budgets.keys()) | set(current_month_expenses.keys())
+
+        for category in all_categories:
+            spent = current_month_expenses.get(category, 0)
+            limit = current_month_budgets.get(category, 0)
+
+            breakdown[category] = {
+                'spent': spent,
+                'limit': limit,
+                'remaining': max(0, limit - spent)
+            }
+
+        return jsonify({
+            'breakdown': breakdown,
+            'current_month': current_month
+        })
+
+    except Exception as e:
+        print(f"Get budget breakdown error: {e}")
+        return jsonify({'error': 'Error fetching budget breakdown', 'details': str(e)}), 500
+
+# Friend Request API Routes
+@app.route('/api/search-user', methods=['GET'])
+@login_required
+def search_user():
+    """Search for a user by username"""
+    print("🔍 DEBUG: ===== SEARCH USER ENDPOINT HIT =====")
+    try:
+        username = request.args.get('username', '').strip()
+        print(f"🔍 DEBUG: Searching for username: '{username}'")
+
+        if not username:
+            return jsonify({'success': False, 'message': 'Username is required'}), 400
+
+        # Search in Firebase profiles collection
+        if db:
+            print(f"🔍 DEBUG: Firebase connected, searching for username: '{username}'")
+
+            # Try the correct Firebase path: users/students/profiles/{username}
+            try:
+                # Correct syntax for nested collections in Firestore
+                profile_doc = db.collection('users').document('students').collection('profiles').document(username).get()
+                print(f"🔍 DEBUG: Checking users/students/profiles/{username} - exists: {profile_doc.exists}")
+
+                if profile_doc.exists:
+                    user_data = profile_doc.to_dict()
+                    print(f"🔍 DEBUG: Found user data in nested path: {user_data}")
+                    return jsonify({
+                        'success': True,
+                        'user': {
+                            'username': username,
+                            'student_name': user_data.get('student_name', ''),
+                            'email': user_data.get('email', ''),
+                            'course': user_data.get('course', ''),
+                            'college': user_data.get('college', ''),
+                            'phone': user_data.get('phone', ''),
+                            'student_id': user_data.get('student_id', ''),
+                            'from_year': user_data.get('from_year', ''),
+                            'to_year': user_data.get('to_year', '')
+                        }
+                    })
+            except Exception as e:
+                print(f"🔍 DEBUG: Error accessing nested path: {e}")
+
+            # Try the profiles collection directly as fallback
+            try:
+                profiles_ref = db.collection('profiles')
+                profile_doc = profiles_ref.document(username).get()
+                print(f"🔍 DEBUG: Checking profiles/{username} - exists: {profile_doc.exists}")
+
+                if profile_doc.exists:
+                    user_data = profile_doc.to_dict()
+                    print(f"🔍 DEBUG: Found user data in profiles: {user_data}")
+                    return jsonify({
+                        'success': True,
+                        'user': {
+                            'username': username,
+                            'student_name': user_data.get('student_name', ''),
+                            'email': user_data.get('email', ''),
+                            'course': user_data.get('course', ''),
+                            'college': user_data.get('college', ''),
+                            'phone': user_data.get('phone', ''),
+                            'student_id': user_data.get('student_id', ''),
+                            'from_year': user_data.get('from_year', ''),
+                            'to_year': user_data.get('to_year', '')
+                        }
+                    })
+            except Exception as e:
+                print(f"🔍 DEBUG: Error accessing profiles collection: {e}")
+
+            # Also try the users collection as fallback
+            try:
+                print(f"🔍 DEBUG: Trying users collection with query")
+                users_ref = db.collection('users')
+                query = users_ref.where('username', '==', username).limit(1)
+                docs = query.stream()
+
+                for doc in docs:
+                    user_data = doc.to_dict()
+                    print(f"🔍 DEBUG: Found in users collection: {user_data}")
+                    return jsonify({
+                        'success': True,
+                        'user': {
+                            'username': user_data.get('username'),
+                            'student_name': user_data.get('student_name'),
+                            'email': user_data.get('email'),
+                            'course': user_data.get('course', ''),
+                            'college': user_data.get('college', ''),
+                            'phone': user_data.get('phone', ''),
+                            'student_id': user_data.get('student_id', ''),
+                            'from_year': user_data.get('from_year', ''),
+                            'to_year': user_data.get('to_year', '')
+                        }
+                    })
+            except Exception as e:
+                print(f"🔍 DEBUG: Error accessing users collection: {e}")
+
+            print(f"🔍 DEBUG: User '{username}' not found in any collection")
+            return jsonify({'success': False, 'message': 'User not found'})
+        else:
+            # Fallback to local JSON file
+            try:
+                with open('users.json', 'r') as f:
+                    users = json.load(f)
+                    for user in users:
+                        if user.get('username') == username:
+                            return jsonify({
+                                'success': True,
+                                'user': {
+                                    'username': user.get('username'),
+                                    'student_name': user.get('student_name'),
+                                    'email': user.get('email')
+                                }
+                            })
+                    return jsonify({'success': False, 'message': 'User not found'})
+            except FileNotFoundError:
+                return jsonify({'success': False, 'message': 'User database not available'})
+
+    except Exception as e:
+        print(f"Error searching user: {e}")
+        return jsonify({'error': 'Error searching user', 'details': str(e)}), 500
+
+@app.route('/api/friend-requests', methods=['GET'])
+@login_required
+def get_friend_requests():
+    """Get all friend requests for the current user"""
+    try:
+        username = session.get('username')
+        if not username:
+            return jsonify({'error': 'User not authenticated'}), 401
+
+        if db:
+            # Get sent requests
+            sent_requests = []
+            sent_ref = db.collection('friend_requests').where('from_username', '==', username).where('status', '==', 'pending')
+            for doc in sent_ref.stream():
+                data = doc.to_dict()
+                data['id'] = doc.id
+                sent_requests.append(data)
+
+            # Get received requests
+            received_requests = []
+            received_ref = db.collection('friend_requests').where('to_username', '==', username).where('status', '==', 'pending')
+            for doc in received_ref.stream():
+                data = doc.to_dict()
+                data['id'] = doc.id
+                received_requests.append(data)
+
+            # Get friends (accepted requests)
+            friends = []
+            friends_ref1 = db.collection('friend_requests').where('from_username', '==', username).where('status', '==', 'accepted')
+            for doc in friends_ref1.stream():
+                data = doc.to_dict()
+                friends.append({
+                    'username': data['to_username'],
+                    'student_name': data.get('to_student_name', ''),
+                    'accepted_at': data.get('updated_at')
+                })
+
+            friends_ref2 = db.collection('friend_requests').where('to_username', '==', username).where('status', '==', 'accepted')
+            for doc in friends_ref2.stream():
+                data = doc.to_dict()
+                friends.append({
+                    'username': data['from_username'],
+                    'student_name': data.get('from_student_name', ''),
+                    'accepted_at': data.get('updated_at')
+                })
+
+            # Get team invitations sent by this user
+            sent_team_invitations = []
+            sent_team_invites_ref = db.collection('team_invitations').where('from_username', '==', username)
+            for doc in sent_team_invites_ref.stream():
+                data = doc.to_dict()
+                sent_team_invitations.append({
+                    'id': doc.id,
+                    'type': 'team_invitation',
+                    'team_name': data.get('team_name', ''),
+                    'to_username': data.get('to_username', ''),
+                    'to_name': data.get('to_name', ''),
+                    'status': data.get('status', 'pending'),
+                    'created_at': data.get('created_at'),
+                    'updated_at': data.get('updated_at')
+                })
+
+            # Get team invitations received by this user
+            received_team_invitations = []
+            received_team_invites_ref = db.collection('team_invitations').where('to_username', '==', username).where('status', '==', 'pending')
+            for doc in received_team_invites_ref.stream():
+                data = doc.to_dict()
+                received_team_invitations.append({
+                    'id': doc.id,
+                    'type': 'team_invitation',
+                    'team_name': data.get('team_name', ''),
+                    'from_username': data.get('from_username', ''),
+                    'from_name': data.get('from_name', ''),
+                    'status': data.get('status', 'pending'),
+                    'created_at': data.get('created_at'),
+                    'updated_at': data.get('updated_at')
+                })
+
+            return jsonify({
+                'success': True,
+                'data': {
+                    'sent': sent_requests,
+                    'received': received_requests,
+                    'friends': friends,
+                    'sent_team_invitations': sent_team_invitations,
+                    'received_team_invitations': received_team_invitations
+                }
+            })
+        else:
+            # Fallback - return empty data
+            return jsonify({
+                'success': True,
+                'data': {
+                    'sent': [],
+                    'received': [],
+                    'friends': []
+                }
+            })
+
+    except Exception as e:
+        print(f"Error getting friend requests: {e}")
+        return jsonify({'error': 'Error getting friend requests', 'details': str(e)}), 500
+
+@app.route('/api/friend-request-test', methods=['GET'])
+def test_friend_request():
+    """Test friend request endpoint"""
+    return jsonify({'message': 'Friend request endpoint is working!'})
+
+@app.route('/api/send-friend-request', methods=['POST'])
+def send_friend_request_new():
+    """Send a friend request - NEW ROUTE"""
+    print("🚀 DEBUG: Friend request POST endpoint hit!")
+    try:
+        username = session.get('username')
+        print(f"🚀 DEBUG: Session username: {username}")
+        if not username:
+            return jsonify({'error': 'User not authenticated'}), 401
+
+        data = request.get_json()
+        to_username = data.get('to_username', '').strip()
+        print(f"🚀 DEBUG: Received request data: {data}")
+        print(f"🚀 DEBUG: Target username: '{to_username}'")
+
+        if not to_username:
+            return jsonify({'success': False, 'message': 'Target username is required'}), 400
+
+        if to_username == username:
+            return jsonify({'success': False, 'message': 'Cannot send friend request to yourself'}), 400
+
+        if db:
+            # Check if request already exists
+            existing_ref = db.collection('friend_requests').where('from_username', '==', username).where('to_username', '==', to_username)
+            existing_docs = list(existing_ref.stream())
+
+            if existing_docs:
+                return jsonify({'success': False, 'message': 'Friend request already sent'}), 400
+
+            # Check if they are already friends (reverse direction)
+            reverse_ref = db.collection('friend_requests').where('from_username', '==', to_username).where('to_username', '==', username).where('status', '==', 'accepted')
+            reverse_docs = list(reverse_ref.stream())
+
+            if reverse_docs:
+                return jsonify({'success': False, 'message': 'You are already friends'}), 400
+
+            # Get user details
+            current_user_data = {}
+            target_user_data = {}
+
+            # Get current user data from profiles collection
+            profiles_ref = db.collection('profiles')
+            current_profile = profiles_ref.document(username).get()
+            if current_profile.exists:
+                current_user_data = current_profile.to_dict()
+                current_user_data['username'] = username
+
+            # Get target user data - use same logic as search function
+            # Try nested path first: users/students/profiles/{username}
+            nested_profile_ref = db.collection('users').document('students').collection('profiles').document(to_username)
+            nested_profile = nested_profile_ref.get()
+            print(f"🚀 DEBUG: Nested profile exists for '{to_username}': {nested_profile.exists}")
+
+            if nested_profile.exists:
+                target_user_data = nested_profile.to_dict()
+                target_user_data['username'] = to_username
+                print(f"🚀 DEBUG: Found user in nested profiles: {target_user_data}")
+            else:
+                # Fallback to direct profiles collection
+                target_profile = profiles_ref.document(to_username).get()
+                print(f"🚀 DEBUG: Direct profile exists for '{to_username}': {target_profile.exists}")
+                if target_profile.exists:
+                    target_user_data = target_profile.to_dict()
+                    target_user_data['username'] = to_username
+                    print(f"🚀 DEBUG: Found user in direct profiles: {target_user_data}")
+                else:
+                    # Final fallback to users collection
+                    users_ref = db.collection('users')
+                    target_user_doc = users_ref.where('username', '==', to_username).limit(1).stream()
+                    for doc in target_user_doc:
+                        target_user_data = doc.to_dict()
+                        print(f"🚀 DEBUG: Found user in users collection: {target_user_data}")
+                        break
+
+            print(f"🚀 DEBUG: Final target_user_data: {target_user_data}")
+            if not target_user_data:
+                return jsonify({'success': False, 'message': 'Target user not found'}), 404
+
+            # Create friend request
+            request_data = {
+                'from_username': username,
+                'to_username': to_username,
+                'from_student_name': current_user_data.get('student_name', ''),
+                'to_student_name': target_user_data.get('student_name', ''),
+                'status': 'pending',
+                'created_at': datetime.now().isoformat(),
+                'updated_at': datetime.now().isoformat()
+            }
+
+            db.collection('friend_requests').add(request_data)
+            print(f"🚀 DEBUG: Friend request saved to database")
+
+            return jsonify({'success': True, 'message': 'Friend request sent successfully'})
+        else:
+            return jsonify({'success': False, 'message': 'Database not available'}), 500
+
+    except Exception as e:
+        print(f"Error sending friend request: {e}")
+        return jsonify({'error': 'Error sending friend request', 'details': str(e)}), 500
+
+@app.route('/api/friend-request', methods=['POST'])
+@login_required
+def send_friend_request():
+    """Send a friend request"""
+    print("🚀 DEBUG: Friend request POST endpoint hit!")
+    try:
+        username = session.get('username')
+        print(f"🚀 DEBUG: Session username: {username}")
+        if not username:
+            return jsonify({'error': 'User not authenticated'}), 401
+
+        data = request.get_json()
+        to_username = data.get('to_username', '').strip()
+        print(f"🚀 DEBUG: Received request data: {data}")
+        print(f"🚀 DEBUG: Target username: '{to_username}'")
+
+        if not to_username:
+            return jsonify({'success': False, 'message': 'Target username is required'}), 400
+
+        if to_username == username:
+            return jsonify({'success': False, 'message': 'Cannot send friend request to yourself'}), 400
+
+        if db:
+            # Check if request already exists
+            existing_ref = db.collection('friend_requests').where('from_username', '==', username).where('to_username', '==', to_username)
+            existing_docs = list(existing_ref.stream())
+
+            if existing_docs:
+                return jsonify({'success': False, 'message': 'Friend request already sent'}), 400
+
+            # Check if they are already friends (reverse direction)
+            reverse_ref = db.collection('friend_requests').where('from_username', '==', to_username).where('to_username', '==', username).where('status', '==', 'accepted')
+            reverse_docs = list(reverse_ref.stream())
+
+            if reverse_docs:
+                return jsonify({'success': False, 'message': 'You are already friends'}), 400
+
+            # Get user details
+            current_user_data = {}
+            target_user_data = {}
+
+            # Get current user data from profiles collection
+            profiles_ref = db.collection('profiles')
+            current_profile = profiles_ref.document(username).get()
+            if current_profile.exists:
+                current_user_data = current_profile.to_dict()
+                current_user_data['username'] = username
+
+            # Get target user data from profiles collection
+            target_profile = profiles_ref.document(to_username).get()
+            print(f"🚀 DEBUG: Profile exists for '{to_username}': {target_profile.exists}")
+            if target_profile.exists:
+                target_user_data = target_profile.to_dict()
+                target_user_data['username'] = to_username
+                print(f"🚀 DEBUG: Found user in profiles: {target_user_data}")
+            else:
+                # Fallback to users collection
+                users_ref = db.collection('users')
+                target_user_doc = users_ref.where('username', '==', to_username).limit(1).stream()
+                for doc in target_user_doc:
+                    target_user_data = doc.to_dict()
+                    print(f"🚀 DEBUG: Found user in users collection: {target_user_data}")
+                    break
+
+            print(f"🚀 DEBUG: Final target_user_data: {target_user_data}")
+            if not target_user_data:
+                return jsonify({'success': False, 'message': 'Target user not found'}), 404
+
+            # Create friend request
+            request_data = {
+                'from_username': username,
+                'to_username': to_username,
+                'from_student_name': current_user_data.get('student_name', ''),
+                'to_student_name': target_user_data.get('student_name', ''),
+                'status': 'pending',
+                'created_at': datetime.now().isoformat(),
+                'updated_at': datetime.now().isoformat()
+            }
+
+            db.collection('friend_requests').add(request_data)
+
+            return jsonify({'success': True, 'message': 'Friend request sent successfully'})
+        else:
+            return jsonify({'success': False, 'message': 'Database not available'}), 500
+
+    except Exception as e:
+        print(f"Error sending friend request: {e}")
+        return jsonify({'error': 'Error sending friend request', 'details': str(e)}), 500
+
+@app.route('/api/friend-request/<request_id>/accept', methods=['POST'])
+@login_required
+def accept_friend_request(request_id):
+    """Accept a friend request"""
+    try:
+        username = session.get('username')
+        if not username:
+            return jsonify({'error': 'User not authenticated'}), 401
+
+        if db:
+            # Get the friend request
+            doc_ref = db.collection('friend_requests').document(request_id)
+            doc = doc_ref.get()
+
+            if not doc.exists:
+                return jsonify({'success': False, 'message': 'Friend request not found'}), 404
+
+            request_data = doc.to_dict()
+
+            # Verify the request is for this user
+            if request_data.get('to_username') != username:
+                return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+
+            # Update status to accepted
+            doc_ref.update({
+                'status': 'accepted',
+                'updated_at': datetime.now().isoformat()
+            })
+
+            return jsonify({'success': True, 'message': 'Friend request accepted'})
+        else:
+            return jsonify({'success': False, 'message': 'Database not available'}), 500
+
+    except Exception as e:
+        print(f"Error accepting friend request: {e}")
+        return jsonify({'error': 'Error accepting friend request', 'details': str(e)}), 500
+
+@app.route('/api/friend-request/<request_id>/decline', methods=['POST'])
+@login_required
+def decline_friend_request(request_id):
+    """Decline a friend request"""
+    try:
+        username = session.get('username')
+        if not username:
+            return jsonify({'error': 'User not authenticated'}), 401
+
+        if db:
+            # Get the friend request
+            doc_ref = db.collection('friend_requests').document(request_id)
+            doc = doc_ref.get()
+
+            if not doc.exists:
+                return jsonify({'success': False, 'message': 'Friend request not found'}), 404
+
+            request_data = doc.to_dict()
+
+            # Verify the request is for this user
+            if request_data.get('to_username') != username:
+                return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+
+            # Delete the request (declined requests are removed)
+            doc_ref.delete()
+
+            return jsonify({'success': True, 'message': 'Friend request declined'})
+        else:
+            return jsonify({'success': False, 'message': 'Database not available'}), 500
+
+    except Exception as e:
+        print(f"Error declining friend request: {e}")
+        return jsonify({'error': 'Error declining friend request', 'details': str(e)}), 500
+
+@app.route('/api/friend-request/<request_id>/cancel', methods=['POST'])
+@login_required
+def cancel_friend_request(request_id):
+    """Cancel a sent friend request"""
+    try:
+        username = session.get('username')
+        if not username:
+            return jsonify({'error': 'User not authenticated'}), 401
+
+        if db:
+            # Get the friend request
+            doc_ref = db.collection('friend_requests').document(request_id)
+            doc = doc_ref.get()
+
+            if not doc.exists:
+                return jsonify({'success': False, 'message': 'Friend request not found'}), 404
+
+            request_data = doc.to_dict()
+
+            # Verify the request is from this user
+            if request_data.get('from_username') != username:
+                return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+
+            # Delete the request
+            doc_ref.delete()
+
+            return jsonify({'success': True, 'message': 'Friend request cancelled'})
+        else:
+            return jsonify({'success': False, 'message': 'Database not available'}), 500
+
+    except Exception as e:
+        print(f"Error cancelling friend request: {e}")
+        return jsonify({'error': 'Error cancelling friend request', 'details': str(e)}), 500
+
+# ===== MESSAGING API ROUTES =====
+
+@app.route('/api/send-message', methods=['POST'])
+@login_required
+def send_message():
+    """Send a direct message to a friend"""
+    try:
+        username = session.get('username')
+        if not username:
+            return jsonify({'error': 'User not authenticated'}), 401
+
+        data = request.get_json()
+        to_username = data.get('to_username', '').strip()
+        subject = data.get('subject', '').strip()
+        content = data.get('content', '').strip()
+
+        if not to_username or not content:
+            return jsonify({'success': False, 'message': 'Recipient and message content are required'}), 400
+
+        if db:
+            # Check if users are friends
+            friends_ref1 = db.collection('friend_requests').where('from_username', '==', username).where('to_username', '==', to_username).where('status', '==', 'accepted')
+            friends_ref2 = db.collection('friend_requests').where('from_username', '==', to_username).where('to_username', '==', username).where('status', '==', 'accepted')
+
+            friends1 = list(friends_ref1.stream())
+            friends2 = list(friends_ref2.stream())
+
+            if not friends1 and not friends2:
+                return jsonify({'success': False, 'message': 'You can only send messages to friends'}), 403
+
+            # Create message
+            message_data = {
+                'from_username': username,
+                'to_username': to_username,
+                'subject': subject,
+                'content': content,
+                'created_at': datetime.now().isoformat(),
+                'read': False
+            }
+
+            db.collection('messages').add(message_data)
+            return jsonify({'success': True, 'message': 'Message sent successfully'})
+        else:
+            return jsonify({'success': False, 'message': 'Database not available'}), 500
+
+    except Exception as e:
+        print(f"Error sending message: {e}")
+        return jsonify({'error': 'Error sending message', 'details': str(e)}), 500
+
+@app.route('/api/conversations', methods=['GET'])
+@login_required
+def get_conversations():
+    """Get conversation summaries for the current user"""
+    try:
+        username = session.get('username')
+        if not username:
+            return jsonify({'error': 'User not authenticated'}), 401
+
+        if db:
+            # Get all messages where user is either sender or receiver
+            sent_messages_ref = db.collection('messages').where('from_username', '==', username)
+            received_messages_ref = db.collection('messages').where('to_username', '==', username)
+
+            all_messages = []
+
+            # Get sent messages
+            for doc in sent_messages_ref.stream():
+                message_data = doc.to_dict()
+                message_data['id'] = doc.id
+                all_messages.append(message_data)
+
+            # Get received messages
+            for doc in received_messages_ref.stream():
+                message_data = doc.to_dict()
+                message_data['id'] = doc.id
+                all_messages.append(message_data)
+
+            # Group messages by conversation partner
+            conversations = {}
+            for message in all_messages:
+                # Determine the conversation partner
+                if message['from_username'] == username:
+                    partner = message['to_username']
+                else:
+                    partner = message['from_username']
+
+                if partner not in conversations:
+                    conversations[partner] = {
+                        'partner_username': partner,
+                        'messages': [],
+                        'unread_count': 0,
+                        'last_message_time': '',
+                        'last_message_content': ''
+                    }
+
+                conversations[partner]['messages'].append(message)
+
+                # Count unread messages (messages sent to current user that are unread)
+                if message['to_username'] == username and not message.get('read', False):
+                    conversations[partner]['unread_count'] += 1
+
+            # Process each conversation
+            conversation_list = []
+            for partner, conv_data in conversations.items():
+                # Sort messages by time (newest first)
+                conv_data['messages'].sort(key=lambda x: x.get('created_at', ''), reverse=True)
+
+                if conv_data['messages']:
+                    latest_message = conv_data['messages'][0]
+                    conv_data['last_message_time'] = latest_message.get('created_at', '')
+                    conv_data['last_message_content'] = latest_message.get('content', '')[:50] + ('...' if len(latest_message.get('content', '')) > 50 else '')
+
+                conversation_list.append(conv_data)
+
+            # Sort conversations by last message time (newest first)
+            conversation_list.sort(key=lambda x: x.get('last_message_time', ''), reverse=True)
+
+            return jsonify({'success': True, 'data': conversation_list})
+        else:
+            return jsonify({'success': False, 'message': 'Database not available'}), 500
+
+    except Exception as e:
+        print(f"Error retrieving conversations: {e}")
+        return jsonify({'error': 'Error retrieving conversations', 'details': str(e)}), 500
+
+@app.route('/api/messages/<partner_username>', methods=['GET'])
+@login_required
+def get_conversation_messages(partner_username):
+    """Get all messages in a conversation with a specific user"""
+    try:
+        username = session.get('username')
+        if not username:
+            return jsonify({'error': 'User not authenticated'}), 401
+
+        if db:
+            # Get messages between current user and partner
+            sent_messages_ref = db.collection('messages').where('from_username', '==', username).where('to_username', '==', partner_username)
+            received_messages_ref = db.collection('messages').where('from_username', '==', partner_username).where('to_username', '==', username)
+
+            messages = []
+
+            # Get sent messages
+            for doc in sent_messages_ref.stream():
+                message_data = doc.to_dict()
+                message_data['id'] = doc.id
+                messages.append(message_data)
+
+            # Get received messages
+            for doc in received_messages_ref.stream():
+                message_data = doc.to_dict()
+                message_data['id'] = doc.id
+                messages.append(message_data)
+
+            # Sort messages by created_at (oldest first for conversation view)
+            messages.sort(key=lambda x: x.get('created_at', ''))
+
+            return jsonify({'success': True, 'data': messages})
+        else:
+            return jsonify({'success': False, 'message': 'Database not available'}), 500
+
+    except Exception as e:
+        print(f"Error retrieving conversation messages: {e}")
+        return jsonify({'error': 'Error retrieving conversation messages', 'details': str(e)}), 500
+
+@app.route('/api/messages/mark-read/<partner_username>', methods=['POST'])
+@login_required
+def mark_messages_read(partner_username):
+    """Mark all messages from a partner as read"""
+    try:
+        username = session.get('username')
+        if not username:
+            return jsonify({'error': 'User not authenticated'}), 401
+
+        if db:
+            # Get unread messages from the partner
+            messages_ref = db.collection('messages').where('from_username', '==', partner_username).where('to_username', '==', username).where('read', '==', False)
+
+            batch = db.batch()
+            count = 0
+
+            for doc in messages_ref.stream():
+                batch.update(doc.reference, {'read': True})
+                count += 1
+
+            if count > 0:
+                batch.commit()
+
+            return jsonify({'success': True, 'message': f'Marked {count} messages as read'})
+        else:
+            return jsonify({'success': False, 'message': 'Database not available'}), 500
+
+    except Exception as e:
+        print(f"Error marking messages as read: {e}")
+        return jsonify({'error': 'Error marking messages as read', 'details': str(e)}), 500
+
 # Health check route
+# Team Management Routes
+
+@app.route('/api/teams', methods=['GET'])
+@login_required
+def get_teams():
+    """Get user's teams"""
+    try:
+        username = session.get('username')
+        if not username:
+            return jsonify({'error': 'User not authenticated'}), 401
+
+        if db:
+            teams = []
+
+            # Get teams where user is owner
+            owner_teams_ref = db.collection('teams').where('owner', '==', username)
+            for doc in owner_teams_ref.stream():
+                team_data = doc.to_dict()
+                team_data['id'] = doc.id
+                team_data['role'] = 'owner'
+                teams.append(team_data)
+
+            # Get teams where user is a member
+            member_teams_ref = db.collection('teams').where('members', 'array_contains', username)
+            for doc in member_teams_ref.stream():
+                team_data = doc.to_dict()
+                if team_data.get('owner') != username:  # Avoid duplicates
+                    team_data['id'] = doc.id
+
+                    # Check actual role from member_details
+                    member_details = team_data.get('member_details', {})
+                    user_role = 'member'  # default
+                    if username in member_details:
+                        user_role = member_details[username].get('role', 'member')
+
+                    team_data['role'] = user_role
+                    teams.append(team_data)
+
+            return jsonify({'success': True, 'teams': teams})
+        else:
+            return jsonify({'success': False, 'message': 'Database not available'}), 500
+
+    except Exception as e:
+        print(f"Error getting teams: {e}")
+        return jsonify({'error': 'Error getting teams', 'details': str(e)}), 500
+
+@app.route('/api/teams', methods=['POST'])
+@login_required
+def create_team():
+    """Create a new team"""
+    try:
+        username = session.get('username')
+        if not username:
+            return jsonify({'error': 'User not authenticated'}), 401
+
+        data = request.get_json()
+        team_name = data.get('name', '').strip()
+        description = data.get('description', '').strip()
+
+        if not team_name:
+            return jsonify({'success': False, 'message': 'Team name is required'}), 400
+
+        if db:
+            # Get current user data
+            current_user_data = {}
+            try:
+                user_ref = get_user_profile_ref(username)
+                user_doc = user_ref.get()
+                if user_doc.exists:
+                    current_user_data = user_doc.to_dict()
+            except Exception as e:
+                print(f"Error getting user data: {e}")
+
+            team_data = {
+                'name': team_name,
+                'description': description,
+                'owner': username,
+                'owner_name': current_user_data.get('student_name', username),
+                'members': [username],  # Owner is automatically a member
+                'member_details': {
+                    username: {
+                        'name': current_user_data.get('student_name', username),
+                        'joined_at': datetime.now().isoformat(),
+                        'role': 'owner'
+                    }
+                },
+                'created_at': datetime.now().isoformat(),
+                'updated_at': datetime.now().isoformat()
+            }
+
+            doc_ref = db.collection('teams').add(team_data)
+            team_id = doc_ref[1].id
+
+            return jsonify({
+                'success': True,
+                'message': 'Team created successfully',
+                'team_id': team_id
+            })
+        else:
+            return jsonify({'success': False, 'message': 'Database not available'}), 500
+
+    except Exception as e:
+        print(f"Error creating team: {e}")
+        return jsonify({'error': 'Error creating team', 'details': str(e)}), 500
+
+@app.route('/api/team-invitations', methods=['POST'])
+@login_required
+def send_team_invitation():
+    """Send team invitation to friends"""
+    try:
+        username = session.get('username')
+        if not username:
+            return jsonify({'error': 'User not authenticated'}), 401
+
+        data = request.get_json()
+        team_id = data.get('team_id', '').strip()
+        friend_usernames = data.get('friends', [])
+
+        if not team_id or not friend_usernames:
+            return jsonify({'success': False, 'message': 'Team ID and friends list are required'}), 400
+
+        if db:
+            # Verify user owns the team
+            team_ref = db.collection('teams').document(team_id)
+            team_doc = team_ref.get()
+
+            if not team_doc.exists:
+                return jsonify({'success': False, 'message': 'Team not found'}), 404
+
+            team_data = team_doc.to_dict()
+            if team_data.get('owner') != username:
+                return jsonify({'success': False, 'message': 'Only team owner can send invitations'}), 403
+
+            # Get current user data
+            current_user_data = {}
+            try:
+                user_ref = get_user_profile_ref(username)
+                user_doc = user_ref.get()
+                if user_doc.exists:
+                    current_user_data = user_doc.to_dict()
+            except Exception as e:
+                print(f"Error getting user data: {e}")
+
+            successful_invitations = []
+            failed_invitations = []
+
+            for friend_username in friend_usernames:
+                try:
+                    # Check if they are friends
+                    friends_ref1 = db.collection('friend_requests').where('from_username', '==', username).where('to_username', '==', friend_username).where('status', '==', 'accepted')
+                    friends_ref2 = db.collection('friend_requests').where('from_username', '==', friend_username).where('to_username', '==', username).where('status', '==', 'accepted')
+
+                    friends1 = list(friends_ref1.stream())
+                    friends2 = list(friends_ref2.stream())
+
+                    if not friends1 and not friends2:
+                        failed_invitations.append({'username': friend_username, 'reason': 'Not friends'})
+                        continue
+
+                    # Check if already a team member
+                    if friend_username in team_data.get('members', []):
+                        failed_invitations.append({'username': friend_username, 'reason': 'Already a team member'})
+                        continue
+
+                    # Check if invitation already exists
+                    existing_invitation_ref = db.collection('team_invitations').where('team_id', '==', team_id).where('to_username', '==', friend_username).where('status', '==', 'pending')
+                    existing_invitations = list(existing_invitation_ref.stream())
+
+                    if existing_invitations:
+                        failed_invitations.append({'username': friend_username, 'reason': 'Invitation already sent'})
+                        continue
+
+                    # Get friend's data
+                    friend_data = {}
+                    try:
+                        friend_ref = get_user_profile_ref(friend_username)
+                        friend_doc = friend_ref.get()
+                        if friend_doc.exists:
+                            friend_data = friend_doc.to_dict()
+                    except Exception as e:
+                        print(f"Error getting friend data: {e}")
+
+                    # Create team invitation
+                    invitation_data = {
+                        'team_id': team_id,
+                        'team_name': team_data.get('name', ''),
+                        'from_username': username,
+                        'from_name': current_user_data.get('student_name', username),
+                        'to_username': friend_username,
+                        'to_name': friend_data.get('student_name', friend_username),
+                        'status': 'pending',
+                        'created_at': datetime.now().isoformat(),
+                        'updated_at': datetime.now().isoformat()
+                    }
+
+                    db.collection('team_invitations').add(invitation_data)
+                    successful_invitations.append(friend_username)
+
+                except Exception as e:
+                    print(f"Error sending invitation to {friend_username}: {e}")
+                    failed_invitations.append({'username': friend_username, 'reason': 'Server error'})
+
+            return jsonify({
+                'success': True,
+                'message': f'Sent {len(successful_invitations)} invitations successfully',
+                'successful': successful_invitations,
+                'failed': failed_invitations
+            })
+        else:
+            return jsonify({'success': False, 'message': 'Database not available'}), 500
+
+    except Exception as e:
+        print(f"Error sending team invitations: {e}")
+        return jsonify({'error': 'Error sending team invitations', 'details': str(e)}), 500
+
+@app.route('/api/team-invitations', methods=['GET'])
+@login_required
+def get_team_invitations():
+    """Get team invitations for current user"""
+    try:
+        username = session.get('username')
+        if not username:
+            return jsonify({'error': 'User not authenticated'}), 401
+
+        if db:
+            invitations = []
+
+            # Get pending invitations for this user
+            invitations_ref = db.collection('team_invitations').where('to_username', '==', username).where('status', '==', 'pending')
+            for doc in invitations_ref.stream():
+                invitation_data = doc.to_dict()
+                invitation_data['id'] = doc.id
+                invitations.append(invitation_data)
+
+            return jsonify({'success': True, 'invitations': invitations})
+        else:
+            return jsonify({'success': False, 'message': 'Database not available'}), 500
+
+    except Exception as e:
+        print(f"Error getting team invitations: {e}")
+        return jsonify({'error': 'Error getting team invitations', 'details': str(e)}), 500
+
+@app.route('/api/team-invitations/<invitation_id>', methods=['PUT'])
+@login_required
+def respond_team_invitation(invitation_id):
+    """Accept or decline team invitation"""
+    try:
+        username = session.get('username')
+        if not username:
+            return jsonify({'error': 'User not authenticated'}), 401
+
+        data = request.get_json()
+        action = data.get('action', '').strip()  # 'accept' or 'decline'
+
+        if action not in ['accept', 'decline']:
+            return jsonify({'success': False, 'message': 'Invalid action. Use accept or decline'}), 400
+
+        if db:
+            # Get the invitation
+            invitation_ref = db.collection('team_invitations').document(invitation_id)
+            invitation_doc = invitation_ref.get()
+
+            if not invitation_doc.exists:
+                return jsonify({'success': False, 'message': 'Invitation not found'}), 404
+
+            invitation_data = invitation_doc.to_dict()
+
+            # Verify this invitation is for the current user
+            if invitation_data.get('to_username') != username:
+                return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+
+            # Check if invitation is still pending
+            if invitation_data.get('status') != 'pending':
+                return jsonify({'success': False, 'message': 'Invitation already processed'}), 400
+
+            if action == 'accept':
+                # Add user to team
+                team_id = invitation_data.get('team_id')
+                team_ref = db.collection('teams').document(team_id)
+                team_doc = team_ref.get()
+
+                if not team_doc.exists:
+                    return jsonify({'success': False, 'message': 'Team no longer exists'}), 404
+
+                team_data = team_doc.to_dict()
+
+                # Get current user data
+                current_user_data = {}
+                try:
+                    user_ref = get_user_profile_ref(username)
+                    user_doc = user_ref.get()
+                    if user_doc.exists:
+                        current_user_data = user_doc.to_dict()
+                except Exception as e:
+                    print(f"Error getting user data: {e}")
+
+                # Update team with new member
+                updated_members = team_data.get('members', [])
+                if username not in updated_members:
+                    updated_members.append(username)
+
+                updated_member_details = team_data.get('member_details', {})
+                updated_member_details[username] = {
+                    'name': current_user_data.get('student_name', username),
+                    'joined_at': datetime.now().isoformat(),
+                    'role': 'member'
+                }
+
+                team_ref.update({
+                    'members': updated_members,
+                    'member_details': updated_member_details,
+                    'updated_at': datetime.now().isoformat()
+                })
+
+                # Update invitation status
+                invitation_ref.update({
+                    'status': 'accepted',
+                    'updated_at': datetime.now().isoformat()
+                })
+
+                return jsonify({'success': True, 'message': 'Team invitation accepted successfully'})
+
+            else:  # decline
+                # Update invitation status
+                invitation_ref.update({
+                    'status': 'declined',
+                    'updated_at': datetime.now().isoformat()
+                })
+
+                return jsonify({'success': True, 'message': 'Team invitation declined'})
+
+        else:
+            return jsonify({'success': False, 'message': 'Database not available'}), 500
+
+    except Exception as e:
+        print(f"Error responding to team invitation: {e}")
+        return jsonify({'error': 'Error responding to team invitation', 'details': str(e)}), 500
+
+@app.route('/api/team-invitations/<invitation_id>', methods=['DELETE'])
+@login_required
+def delete_team_invitation(invitation_id):
+    """Delete team invitation (for declined invitations)"""
+    try:
+        username = session.get('username')
+        if not username:
+            return jsonify({'error': 'User not authenticated'}), 401
+
+        if db:
+            # Get the invitation
+            invitation_ref = db.collection('team_invitations').document(invitation_id)
+            invitation_doc = invitation_ref.get()
+
+            if not invitation_doc.exists:
+                return jsonify({'success': False, 'message': 'Invitation not found'}), 404
+
+            invitation_data = invitation_doc.to_dict()
+
+            # Verify the user is the sender of the invitation
+            if invitation_data.get('from_username') != username:
+                return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+
+            # Only allow deletion of declined invitations
+            if invitation_data.get('status') != 'declined':
+                return jsonify({'success': False, 'message': 'Can only delete declined invitations'}), 400
+
+            # Delete the invitation
+            invitation_ref.delete()
+
+            return jsonify({'success': True, 'message': 'Invitation deleted successfully'})
+        else:
+            return jsonify({'success': False, 'message': 'Database not available'}), 500
+
+    except Exception as e:
+        print(f"Error deleting team invitation: {e}")
+        return jsonify({'error': 'Error deleting team invitation', 'details': str(e)}), 500
+
+@app.route('/api/teams/<team_id>/star-member', methods=['PUT'])
+@login_required
+def manage_star_member(team_id):
+    """Add or remove star member status"""
+    try:
+        username = session.get('username')
+        if not username:
+            return jsonify({'error': 'User not authenticated'}), 401
+
+        data = request.get_json()
+        target_username = data.get('username', '').strip()
+        action = data.get('action', '').strip()  # 'add' or 'remove'
+
+        if not target_username or action not in ['add', 'remove']:
+            return jsonify({'success': False, 'message': 'Invalid request parameters'}), 400
+
+        if db:
+            # Get the team
+            team_ref = db.collection('teams').document(team_id)
+            team_doc = team_ref.get()
+
+            if not team_doc.exists:
+                return jsonify({'success': False, 'message': 'Team not found'}), 404
+
+            team_data = team_doc.to_dict()
+
+            # Check if user is the owner
+            if team_data.get('owner') != username:
+                return jsonify({'success': False, 'message': 'Only team owners can manage star members'}), 403
+
+            # Check if target user is a member
+            if target_username not in team_data.get('members', []):
+                return jsonify({'success': False, 'message': 'User is not a team member'}), 400
+
+            # Update member role
+            member_details = team_data.get('member_details', {})
+            if target_username in member_details:
+                if action == 'add':
+                    member_details[target_username]['role'] = 'star'
+                    message = f'{target_username} is now a star member'
+                else:  # remove
+                    member_details[target_username]['role'] = 'member'
+                    message = f'Removed star status from {target_username}'
+
+                # Update the team
+                team_ref.update({
+                    'member_details': member_details,
+                    'updated_at': datetime.now().isoformat()
+                })
+
+                return jsonify({'success': True, 'message': message})
+            else:
+                return jsonify({'success': False, 'message': 'Member details not found'}), 400
+
+        else:
+            return jsonify({'success': False, 'message': 'Database not available'}), 500
+
+    except Exception as e:
+        print(f"Error managing star member: {e}")
+        return jsonify({'error': 'Error managing star member', 'details': str(e)}), 500
+
+@app.route('/api/teams/<team_id>/remove-member', methods=['PUT'])
+@login_required
+def remove_team_member(team_id):
+    """Remove member from team"""
+    try:
+        username = session.get('username')
+        if not username:
+            return jsonify({'error': 'User not authenticated'}), 401
+
+        data = request.get_json()
+        target_username = data.get('username', '').strip()
+
+        if not target_username:
+            return jsonify({'success': False, 'message': 'Username is required'}), 400
+
+        if db:
+            # Get the team
+            team_ref = db.collection('teams').document(team_id)
+            team_doc = team_ref.get()
+
+            if not team_doc.exists:
+                return jsonify({'success': False, 'message': 'Team not found'}), 404
+
+            team_data = team_doc.to_dict()
+
+            # Check permissions: owner or star member can remove others
+            user_role = 'member'  # default
+            if username == team_data.get('owner'):
+                user_role = 'owner'
+            elif username in team_data.get('member_details', {}):
+                user_role = team_data['member_details'][username].get('role', 'member')
+
+            if user_role not in ['owner', 'star']:
+                return jsonify({'success': False, 'message': 'Only owners and star members can remove team members'}), 403
+
+            # Cannot remove the owner
+            if target_username == team_data.get('owner'):
+                return jsonify({'success': False, 'message': 'Cannot remove team owner'}), 400
+
+            # Check if target user is a member
+            if target_username not in team_data.get('members', []):
+                return jsonify({'success': False, 'message': 'User is not a team member'}), 400
+
+            # Remove member
+            updated_members = [m for m in team_data.get('members', []) if m != target_username]
+            updated_member_details = team_data.get('member_details', {})
+            if target_username in updated_member_details:
+                del updated_member_details[target_username]
+
+            # Update the team
+            team_ref.update({
+                'members': updated_members,
+                'member_details': updated_member_details,
+                'updated_at': datetime.now().isoformat()
+            })
+
+            return jsonify({'success': True, 'message': f'{target_username} has been removed from the team'})
+
+        else:
+            return jsonify({'success': False, 'message': 'Database not available'}), 500
+
+    except Exception as e:
+        print(f"Error removing team member: {e}")
+        return jsonify({'error': 'Error removing team member', 'details': str(e)}), 500
+
+@app.route('/api/teams/<team_id>', methods=['DELETE'])
+@login_required
+def dismantle_team(team_id):
+    """Dismantle/delete team (owner only)"""
+    try:
+        username = session.get('username')
+        if not username:
+            return jsonify({'error': 'User not authenticated'}), 401
+
+        if db:
+            # Get the team
+            team_ref = db.collection('teams').document(team_id)
+            team_doc = team_ref.get()
+
+            if not team_doc.exists:
+                return jsonify({'success': False, 'message': 'Team not found'}), 404
+
+            team_data = team_doc.to_dict()
+
+            # Check if user is the owner
+            if team_data.get('owner') != username:
+                return jsonify({'success': False, 'message': 'Only team owners can dismantle teams'}), 403
+
+            # Delete all team messages
+            messages_ref = db.collection('team_messages').where('team_id', '==', team_id)
+            for message_doc in messages_ref.stream():
+                message_doc.reference.delete()
+
+            # Delete all team invitations
+            invitations_ref = db.collection('team_invitations').where('team_id', '==', team_id)
+            for invitation_doc in invitations_ref.stream():
+                invitation_doc.reference.delete()
+
+            # Delete the team
+            team_ref.delete()
+
+            return jsonify({'success': True, 'message': f'Team "{team_data.get("name", "Unknown")}" has been dismantled'})
+
+        else:
+            return jsonify({'success': False, 'message': 'Database not available'}), 500
+
+    except Exception as e:
+        print(f"Error dismantling team: {e}")
+        return jsonify({'error': 'Error dismantling team', 'details': str(e)}), 500
+
+@app.route('/api/team-messages/<team_id>', methods=['GET'])
+@login_required
+def get_team_messages(team_id):
+    """Get messages for a specific team"""
+    try:
+        username = session.get('username')
+        if not username:
+            return jsonify({'error': 'User not authenticated'}), 401
+
+        if db:
+            # Verify user is a team member
+            team_ref = db.collection('teams').document(team_id)
+            team_doc = team_ref.get()
+
+            if not team_doc.exists:
+                return jsonify({'success': False, 'message': 'Team not found'}), 404
+
+            team_data = team_doc.to_dict()
+            if username not in team_data.get('members', []):
+                return jsonify({'success': False, 'message': 'Access denied'}), 403
+
+            # Get team messages (without ordering to avoid index requirement)
+            messages = []
+            messages_ref = db.collection('team_messages').where('team_id', '==', team_id)
+            for doc in messages_ref.stream():
+                message_data = doc.to_dict()
+                message_data['id'] = doc.id
+                messages.append(message_data)
+
+            # Sort messages by created_at in Python
+            messages.sort(key=lambda x: x.get('created_at', ''), reverse=False)
+
+            return jsonify({'success': True, 'messages': messages, 'team_name': team_data.get('name', '')})
+        else:
+            return jsonify({'success': False, 'message': 'Database not available'}), 500
+
+    except Exception as e:
+        print(f"Error getting team messages: {e}")
+        return jsonify({'error': 'Error getting team messages', 'details': str(e)}), 500
+
+@app.route('/api/team-messages', methods=['POST'])
+@login_required
+def send_team_message():
+    """Send a message to a team"""
+    try:
+        username = session.get('username')
+        if not username:
+            return jsonify({'error': 'User not authenticated'}), 401
+
+        data = request.get_json()
+        team_id = data.get('team_id', '').strip()
+        content = data.get('content', '').strip()
+        message_type = data.get('type', 'text')  # text, image, pdf, voice
+        file_url = data.get('file_url', '')
+        file_name = data.get('file_name', '')
+
+        if not team_id or not content:
+            return jsonify({'success': False, 'message': 'Team ID and content are required'}), 400
+
+        if db:
+            # Verify user is a team member
+            team_ref = db.collection('teams').document(team_id)
+            team_doc = team_ref.get()
+
+            if not team_doc.exists:
+                return jsonify({'success': False, 'message': 'Team not found'}), 404
+
+            team_data = team_doc.to_dict()
+            if username not in team_data.get('members', []):
+                return jsonify({'success': False, 'message': 'Access denied'}), 403
+
+            # Get current user data
+            current_user_data = {}
+            try:
+                user_ref = get_user_profile_ref(username)
+                user_doc = user_ref.get()
+                if user_doc.exists:
+                    current_user_data = user_doc.to_dict()
+            except Exception as e:
+                print(f"Error getting user data: {e}")
+
+            # Create team message
+            message_data = {
+                'team_id': team_id,
+                'from_username': username,
+                'from_name': current_user_data.get('student_name', username),
+                'content': content,
+                'type': message_type,
+                'file_url': file_url,
+                'file_name': file_name,
+                'created_at': datetime.now().isoformat(),
+                'read_by': [username]  # Sender has read the message
+            }
+
+            db.collection('team_messages').add(message_data)
+
+            return jsonify({'success': True, 'message': 'Message sent successfully'})
+        else:
+            return jsonify({'success': False, 'message': 'Database not available'}), 500
+
+    except Exception as e:
+        print(f"Error sending team message: {e}")
+        return jsonify({'error': 'Error sending team message', 'details': str(e)}), 500
+
+@app.route('/api/team-messages/<message_id>', methods=['PUT'])
+@login_required
+def update_team_message(message_id):
+    try:
+        username = session.get('username')
+        data = request.get_json()
+        new_content = data.get('content', '').strip()
+
+        if not new_content:
+            return jsonify({'success': False, 'message': 'Content cannot be empty'}), 400
+
+        # Get the message to verify ownership
+        message_ref = db.collection('team_messages').document(message_id)
+        message_doc = message_ref.get()
+
+        if not message_doc.exists:
+            return jsonify({'success': False, 'message': 'Message not found'}), 404
+
+        message_data = message_doc.to_dict()
+
+        # Check if user owns the message
+        if message_data.get('from_username') != username:
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+
+        # Check if message is text type (only text messages can be edited)
+        if message_data.get('type') != 'text':
+            return jsonify({'success': False, 'message': 'Only text messages can be edited'}), 400
+
+        # Update the message
+        message_ref.update({
+            'content': new_content,
+            'updated_at': datetime.now().isoformat(),
+            'edited': True
+        })
+
+        return jsonify({'success': True, 'message': 'Message updated successfully'})
+
+    except Exception as e:
+        print(f"Error updating team message: {e}")
+        return jsonify({'success': False, 'message': 'Failed to update message'}), 500
+
+@app.route('/api/team-messages/<message_id>', methods=['DELETE'])
+@login_required
+def delete_team_message(message_id):
+    try:
+        username = session.get('username')
+
+        # Get the message to verify ownership
+        message_ref = db.collection('team_messages').document(message_id)
+        message_doc = message_ref.get()
+
+        if not message_doc.exists:
+            return jsonify({'success': False, 'message': 'Message not found'}), 404
+
+        message_data = message_doc.to_dict()
+
+        # Check if user owns the message
+        if message_data.get('from_username') != username:
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+
+        # Delete the message
+        message_ref.delete()
+
+        # If it's a file message, optionally delete the file from storage
+        # (For now, we'll keep files in storage for safety)
+
+        return jsonify({'success': True, 'message': 'Message deleted successfully'})
+
+    except Exception as e:
+        print(f"Error deleting team message: {e}")
+        return jsonify({'success': False, 'message': 'Failed to delete message'}), 500
+
+@app.route('/api/team-file-upload', methods=['POST'])
+@login_required
+def upload_team_file():
+    """Upload file for team chat"""
+    try:
+        username = session.get('username')
+        if not username:
+            return jsonify({'error': 'User not authenticated'}), 401
+
+        team_id = request.form.get('team_id')
+        if not team_id:
+            return jsonify({'success': False, 'message': 'Team ID is required'}), 400
+
+        if 'file' not in request.files:
+            return jsonify({'success': False, 'message': 'No file uploaded'}), 400
+
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'success': False, 'message': 'No file selected'}), 400
+
+        # Check file type and size - removed voice file support
+        allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'pdf'}
+        file_ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
+
+        if file_ext not in allowed_extensions:
+            return jsonify({'success': False, 'message': 'File type not allowed. Only images and PDFs are supported.'}), 400
+
+        # Check file size (10MB limit)
+        file.seek(0, 2)  # Seek to end
+        file_size = file.tell()
+        file.seek(0)  # Reset to beginning
+
+        if file_size > 10 * 1024 * 1024:  # 10MB
+            return jsonify({'success': False, 'message': 'File too large (max 10MB)'}), 400
+
+        if db:
+            # Verify user is a team member
+            team_ref = db.collection('teams').document(team_id)
+            team_doc = team_ref.get()
+
+            if not team_doc.exists:
+                return jsonify({'success': False, 'message': 'Team not found'}), 404
+
+            team_data = team_doc.to_dict()
+            if username not in team_data.get('members', []):
+                return jsonify({'success': False, 'message': 'Access denied'}), 403
+
+            # Create uploads directory if it doesn't exist
+            upload_dir = os.path.join('static', 'uploads', 'team_files')
+            os.makedirs(upload_dir, exist_ok=True)
+
+            # Generate unique filename
+            import uuid
+            unique_filename = f"{uuid.uuid4()}_{file.filename}"
+            file_path = os.path.join(upload_dir, unique_filename)
+
+            # Save file
+            file.save(file_path)
+
+            # Generate file URL
+            file_url = f"/static/uploads/team_files/{unique_filename}"
+
+            # Determine message type
+            message_type = 'image' if file_ext in {'png', 'jpg', 'jpeg', 'gif'} else 'pdf'
+
+            return jsonify({
+                'success': True,
+                'file_url': file_url,
+                'file_name': file.filename,
+                'message_type': message_type
+            })
+        else:
+            return jsonify({'success': False, 'message': 'Database not available'}), 500
+
+    except Exception as e:
+        print(f"Error uploading team file: {e}")
+        return jsonify({'error': 'Error uploading file', 'details': str(e)}), 500
+
 @app.route('/health')
 def health_check():
     return jsonify({
-        'status': 'ok', 
+        'status': 'ok',
         'message': 'Server is running with Firebase storage and Smart Reminder System',
         'environment': os.getenv('FLASK_ENV', 'development'),
         'firebase_configured': db is not None
